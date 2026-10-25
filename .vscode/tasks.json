@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Iniciar Servidor + BBDD SQLite (Puerto 8080)",
+      "type": "shell",
+      "command": "node server/server.mjs",
+      "isBackground": true,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Compilar Ejecutable HeroQuest25D.exe",
+      "type": "shell",
+      "command": "npm run build:exe",
+      "group": "build"
+    }
+  ]
+}

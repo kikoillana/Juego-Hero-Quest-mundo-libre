@@ -1,0 +1,16 @@
+# Dependencias y compilaciones temporales
+node_modules/
+dist/
+build/
+
+# Archivos temporales de SQLite (WAL / Shared Memory)
+data/*.db-wal
+data/*.db-shm
+
+# Logs de diagnóstico
+*.log
+launcher-error.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

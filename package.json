@@ -1,0 +1,14 @@
+{
+  "name": "heroquest-25d-mundo-libre",
+  "version": "3.0.0",
+  "description": "HeroQuest 2.5D — Edición Mundo Libre (Bosque tipo Zelda Clásico + 4 Mazmorras Persistentes + SQLite)",
+  "type": "module",
+  "main": "server/server.mjs",
+  "scripts": {
+    "start": "node server/server.mjs",
+    "build:exe": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe /target:winexe /out:HeroQuest25D.exe launcher\\Program.cs"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Iniciar Backend HeroQuest 2.5D (SQLite)",
+      "program": "${workspaceFolder}/server/server.mjs",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

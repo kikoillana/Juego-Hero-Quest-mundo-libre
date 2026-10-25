@@ -1,0 +1,15 @@
+{
+  "folders": [
+    {
+      "name": "HeroQuest 2.5D — PC Edition",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "data/*.db-wal": true,
+      "data/*.db-shm": true
+    }
+  }
+}
