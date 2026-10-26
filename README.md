@@ -39,3 +39,13 @@ Abre `http://localhost:8081` en tu navegador.
    - **Suroeste (junto a la laguna)**: *Templo Hundido del Pantano* (6 Salas — Jefe: Soberano del Pantano).
    - El estado de puertas abiertas, cofres saqueados, trampas desactivadas y monstruos abatidos se conserva al salir y entrar, y se guarda en la **BBDD SQLite (`data/heroquest.db`)**.
 4. **Minimapa Táctico en Tiempo Real** en la esquina inferior derecha y **Música Dual** (*Forest Adventure Synth* en el bosque y *Dark Dungeon Synth* en las mazmorras).
+
+## Arte pixel-art
+
+Todo el arte es pixel-art original a 16 px por celda (escalado x3 en el juego) y se genera con scripts de Python + Pillow en `tools/sprites/`:
+
+- `python tools/sprites/gen_env_atlas.py` regenera terreno, mazmorras, objetos y botín (`assets/sprites/`).
+- `gen_heroes.py`, `gen_monsters.py`, `gen_npcs.py`, `gen_char_fx.py` y `gen_portraits.py` generan personajes, armas y retratos.
+- `gen_ui.py` genera los iconos de la interfaz (`assets/ui/`).
+
+La paleta común está en `tools/sprites/pixel.py`. Las fuentes (Press Start 2P y Pixelify Sans, licencia OFL) están en `assets/fonts/`, así que el juego funciona sin conexión.
