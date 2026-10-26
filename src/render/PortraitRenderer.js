@@ -1,23 +1,88 @@
 /**
- * @fileoverview Renderizador procedural de retratos vectoriales en vivo para avatares de UI,
- * selector de héroes y diálogos (4 Clases de Héroe, Mentor y 5 Monstruos).
- * Cero activos externos. Capa 4: Sin dependencias circulares.
+ * @fileoverview Renderizador de retratos con soporte para retratos hiperrealistas de alta definición
+ * y fallback procedural vectorial en vivo para avatares de UI, selector de héroes y diálogos.
+ * Capa 4: Sin dependencias circulares.
  */
 
+const REALISTIC_PORTRAITS = {
+    barbarian: './assets/heroes/barbarian.jpg',
+    dwarf: './assets/heroes/dwarf.jpg',
+    elf: './assets/heroes/elf.jpg',
+    wizard: './assets/heroes/wizard.jpg',
+    mentor: './assets/heroes/mentor.jpg',
+    gargoyle: './assets/heroes/gargoyle.jpg'
+};
+
 export class PortraitRenderer {
+    static _imageCache = new Map();
+
     /**
-     * Dibuja un retrato vectorial detallado en el canvas indicado.
+     * Precarga los retratos realistas para que estén listos inmediatamente.
+     */
+    static preloadImages() {
+        if (typeof window === 'undefined') return;
+        for (const [id, src] of Object.entries(REALISTIC_PORTRAITS)) {
+            const img = new Image();
+            // Si falla la carga se descarta de la caché para reintentar más tarde (y usar el fallback vectorial)
+            img.onerror = () => {
+                if (PortraitRenderer._imageCache.get(id) === img) PortraitRenderer._imageCache.delete(id);
+            };
+            img.src = src;
+            PortraitRenderer._imageCache.set(id, img);
+        }
+    }
+
+    /**
+     * Dibuja un retrato (realista si está disponible, o vectorial procedural) en el canvas indicado.
      * @param {HTMLCanvasElement} canvas
      * @param {string} characterId - 'barbarian' | 'dwarf' | 'elf' | 'wizard' | 'mentor' | 'goblin' | 'orc' | 'skeleton' | 'fimir' | 'gargoyle'
-     * @param {number} [time=0] - Tiempo opcional para sutil animación de brillo
      */
-    static renderToCanvas(canvas, characterId, time = 0) {
+    static renderToCanvas(canvas, characterId) {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
         const w = canvas.width;
         const h = canvas.height;
+
+        const imageSrc = REALISTIC_PORTRAITS[characterId];
+        if (imageSrc) {
+            let img = this._imageCache.get(characterId);
+            if (!img) {
+                img = new Image();
+                img.src = imageSrc;
+                this._imageCache.set(characterId, img);
+            }
+
+            if (img.complete && img.naturalWidth > 0) {
+                ctx.clearRect(0, 0, w, h);
+                ctx.save();
+                ctx.drawImage(img, 0, 0, w, h);
+
+                // Marco gótico interior biselado dorado
+                const bWidth = Math.max(2, Math.round(w * 0.035));
+                ctx.strokeStyle = '#d4af37';
+                ctx.lineWidth = bWidth;
+                ctx.strokeRect(bWidth / 2, bWidth / 2, w - bWidth, h - bWidth);
+
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+                ctx.lineWidth = Math.max(1, Math.round(w * 0.015));
+                const offset = bWidth + 1;
+                ctx.strokeRect(offset, offset, w - offset * 2, h - offset * 2);
+
+                ctx.restore();
+                return;
+            } else if (!img.complete) {
+                // Solo si aún está cargando: una imagen fallida (complete && naturalWidth 0)
+                // nunca dispararía 'load' y acumularía listeners en cada llamada.
+                img.addEventListener('load', () => {
+                    if (canvas && canvas.isConnected) {
+                        PortraitRenderer.renderToCanvas(canvas, characterId);
+                    }
+                }, { once: true });
+            }
+        }
+
         ctx.clearRect(0, 0, w, h);
 
         ctx.save();
@@ -25,25 +90,25 @@ export class PortraitRenderer {
 
         switch (characterId) {
             case 'barbarian':
-                this._drawBarbarian(ctx, time);
+                this._drawBarbarian(ctx);
                 break;
             case 'dwarf':
-                this._drawDwarf(ctx, time);
+                this._drawDwarf(ctx);
                 break;
             case 'elf':
-                this._drawElf(ctx, time);
+                this._drawElf(ctx);
                 break;
             case 'wizard':
-                this._drawWizard(ctx, time);
+                this._drawWizard(ctx);
                 break;
             case 'mentor':
-                this._drawMentor(ctx, time);
+                this._drawMentor(ctx);
                 break;
             case 'gargoyle':
-                this._drawGargoyle(ctx, time);
+                this._drawGargoyle(ctx);
                 break;
             default:
-                this._drawMentor(ctx, time);
+                this._drawMentor(ctx);
                 break;
         }
 
@@ -394,3 +459,5 @@ export class PortraitRenderer {
         ctx.fillRect(36, 58, 28, 7);
     }
 }
+
+PortraitRenderer.preloadImages();

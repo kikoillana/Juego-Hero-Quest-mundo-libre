@@ -159,6 +159,7 @@ export const EVENTS = Object.freeze({
     PLAYER_SKILL: 'player:skill',
     PLAYER_JUMP: 'player:jump',
     PLAYER_DASH: 'player:dash',
+    PLAYER_BLOCK: 'player:block',
     PLAYER_DAMAGED: 'player:damaged',
     PLAYER_HEALED: 'player:healed',
     PLAYER_STEP: 'player:step',

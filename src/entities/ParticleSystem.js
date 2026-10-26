@@ -7,6 +7,16 @@
 import { GRAVITY, EVENTS } from '../config/constants.js';
 import { eventBus } from '../core/EventBus.js';
 
+/**
+ * Elimina el elemento i en O(1) intercambiándolo con el último (el orden no importa).
+ * Seguro al iterar el array de atrás hacia delante.
+ */
+function swapRemove(arr, i) {
+    const last = arr.length - 1;
+    if (i !== last) arr[i] = arr[last];
+    arr.pop();
+}
+
 export class ParticleSystem {
     constructor() {
         /** @type {Array<Object>} */
@@ -18,14 +28,27 @@ export class ParticleSystem {
         /** @type {Array<Object>} */
         this.floatingTexts = [];
 
+        /** @type {Array<Function>} funciones de desuscripción del EventBus */
+        this._unsubscribers = [];
         this._bindEvents();
     }
 
     _bindEvents() {
-        eventBus.on(EVENTS.PARTICLE_BURST, (cfg) => this.spawnBurst(cfg));
-        eventBus.on(EVENTS.SLASH_FX, (cfg) => this.spawnSlash(cfg));
-        eventBus.on(EVENTS.MAGIC_FX, (cfg) => this.spawnMagicWave(cfg));
-        eventBus.on(EVENTS.FLOATING_TEXT, (cfg) => this.spawnFloatingText(cfg));
+        this._unsubscribers.push(
+            eventBus.on(EVENTS.PARTICLE_BURST, (cfg) => this.spawnBurst(cfg)),
+            eventBus.on(EVENTS.SLASH_FX, (cfg) => this.spawnSlash(cfg)),
+            eventBus.on(EVENTS.MAGIC_FX, (cfg) => this.spawnMagicWave(cfg)),
+            eventBus.on(EVENTS.FLOATING_TEXT, (cfg) => this.spawnFloatingText(cfg))
+        );
+    }
+
+    /** Libera las suscripciones al EventBus (si el sistema se recrea). */
+    dispose() {
+        for (const off of this._unsubscribers) {
+            if (typeof off === 'function') off();
+        }
+        this._unsubscribers.length = 0;
+        this.clear();
     }
 
     /**
@@ -110,7 +133,7 @@ export class ParticleSystem {
             const p = this.particles[i];
             p.life -= dt;
             if (p.life <= 0) {
-                this.particles.splice(i, 1);
+                swapRemove(this.particles, i);
                 continue;
             }
 
@@ -132,7 +155,7 @@ export class ParticleSystem {
             const s = this.slashes[i];
             s.life -= dt;
             if (s.life <= 0) {
-                this.slashes.splice(i, 1);
+                swapRemove(this.slashes, i);
             }
         }
 
@@ -141,7 +164,7 @@ export class ParticleSystem {
             const w = this.shockwaves[i];
             w.life -= dt;
             if (w.life <= 0) {
-                this.shockwaves.splice(i, 1);
+                swapRemove(this.shockwaves, i);
             }
         }
 
@@ -150,7 +173,7 @@ export class ParticleSystem {
             const ft = this.floatingTexts[i];
             ft.life -= dt;
             if (ft.life <= 0) {
-                this.floatingTexts.splice(i, 1);
+                swapRemove(this.floatingTexts, i);
                 continue;
             }
             ft.z += ft.vz * dt;
@@ -211,22 +234,21 @@ export class ParticleSystem {
             ctx.restore();
         }
 
-        // 3. Partículas 2.5D con su sombra
+        // 3. Partículas 2.5D con su sombra (sin save/restore por partícula: el save exterior basta)
+        const TAU = Math.PI * 2;
         for (const p of this.particles) {
             const alpha = Math.max(0, p.life / p.maxLife);
-            ctx.save();
             ctx.globalAlpha = alpha * 0.35;
             ctx.fillStyle = '#000000';
             ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size * 0.75, 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, p.size * 0.75, 0, TAU);
             ctx.fill();
 
             ctx.globalAlpha = alpha;
             ctx.fillStyle = p.color;
             ctx.beginPath();
-            ctx.arc(p.x, p.y - p.z, p.size, 0, Math.PI * 2);
+            ctx.arc(p.x, p.y - p.z, p.size, 0, TAU);
             ctx.fill();
-            ctx.restore();
         }
 
         ctx.restore();

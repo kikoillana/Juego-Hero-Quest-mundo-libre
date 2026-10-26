@@ -539,6 +539,8 @@ export class InteractionSystem {
 
     _openDoor(door, player, board) {
         door.open = true;
+        // Invalida la caché de Niebla de Guerra (RaycasterLOS) al cambiar la opacidad de la puerta
+        if (board) board.doorVersion = (board.doorVersion || 0) + 1;
 
         eventBus.emit(EVENTS.DOOR_OPENED, { door });
         eventBus.emit(EVENTS.PARTICLE_BURST, {

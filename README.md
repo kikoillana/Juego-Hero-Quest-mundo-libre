@@ -12,7 +12,7 @@ Haz doble clic en **`HeroQuest25D.exe`** dentro de `heroquest-25d-mundo-libre`.
 
 ### Opción 2: Desde Terminal
 ```bash
-cd c:\Users\kikoi\.gemini\antigravity\scratch\heroquest-25d-mundo-libre
+cd ruta\a\Juego-Hero-Quest-mundo-libre
 npm start
 ```
 Abre `http://localhost:8081` en tu navegador.

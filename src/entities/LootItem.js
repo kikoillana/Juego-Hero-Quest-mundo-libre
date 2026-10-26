@@ -7,6 +7,13 @@
 import { GRAVITY, LOOT_TYPE, EVENTS } from '../config/constants.js';
 import { eventBus } from '../core/EventBus.js';
 
+/** Tabla de pociones recogibles: clave de inventario, texto flotante y color. */
+const POTION_LOOT = {
+    [LOOT_TYPE.HEAL_POTION]: { key: 'healPotions', text: '+1 Poción Curativa [1]', color: '#4ade80' },
+    [LOOT_TYPE.STRENGTH_POTION]: { key: 'strengthPotions', text: '+1 Poción Fuerza [2]', color: '#f59e0b' },
+    [LOOT_TYPE.SPEED_POTION]: { key: 'speedPotions', text: '+1 Poción Velocidad [3]', color: '#38bdf8' }
+};
+
 export class LootItem {
     /**
      * @param {{ x: number, y: number, z?: number, vx?: number, vy?: number, vz?: number, type: string, value?: number }} config
@@ -110,36 +117,19 @@ export class LootItem {
                 text: `+${this.value} Oro`,
                 color: '#facc15'
             });
-        } else if (this.type === LOOT_TYPE.HEAL_POTION) {
-            player.inventory.healPotions++;
-            eventBus.emit(EVENTS.LOOT_COLLECTED, { kind: 'potion', type: this.type });
-            eventBus.emit(EVENTS.FLOATING_TEXT, {
-                x: player.x,
-                y: player.y,
-                z: 44,
-                text: '+1 Poción Curativa [1]',
-                color: '#4ade80'
-            });
-        } else if (this.type === LOOT_TYPE.STRENGTH_POTION) {
-            player.inventory.strengthPotions++;
-            eventBus.emit(EVENTS.LOOT_COLLECTED, { kind: 'potion', type: this.type });
-            eventBus.emit(EVENTS.FLOATING_TEXT, {
-                x: player.x,
-                y: player.y,
-                z: 44,
-                text: '+1 Poción Fuerza [2]',
-                color: '#f59e0b'
-            });
-        } else if (this.type === LOOT_TYPE.SPEED_POTION) {
-            player.inventory.speedPotions++;
-            eventBus.emit(EVENTS.LOOT_COLLECTED, { kind: 'potion', type: this.type });
-            eventBus.emit(EVENTS.FLOATING_TEXT, {
-                x: player.x,
-                y: player.y,
-                z: 44,
-                text: '+1 Poción Velocidad [3]',
-                color: '#38bdf8'
-            });
+        } else {
+            const potion = POTION_LOOT[this.type];
+            if (potion) {
+                player.inventory[potion.key]++;
+                eventBus.emit(EVENTS.LOOT_COLLECTED, { kind: 'potion', type: this.type });
+                eventBus.emit(EVENTS.FLOATING_TEXT, {
+                    x: player.x,
+                    y: player.y,
+                    z: 44,
+                    text: potion.text,
+                    color: potion.color
+                });
+            }
         }
 
         player.emitUpdate();

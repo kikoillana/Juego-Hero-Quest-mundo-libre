@@ -75,11 +75,12 @@ export class Player {
         this.facingX = 1;
         this.attackTimer = 0;
         this.attackAnimTimer = 0;
+        this.attackAnimDuration = 0.22;
         this.skillCooldownTimer = 0;
-        this.dashTimer = 0;
-        this.dashCooldownTimer = 0;
-        this.dashDirX = 0;
-        this.dashDirY = 0;
+        this.isBlocking = false;
+        this.guardBreakTimer = 0;
+        this.blockNeedsRelease = false;
+        this.lastBoard = null;
         this.invulnerableTimer = 0;
         this.hurtFlashTimer = 0;
 
@@ -93,6 +94,22 @@ export class Player {
         this.isMoving = false;
         this.dead = false;
         this.downedTimer = 0;
+
+        // Throttle de refresco del HUD (10 Hz) y caché de objetivo táctico de la IA
+        this._hudTimer = 0;
+        this._targetTimer = 0;
+        this._target = null;
+        this._targetList = null;
+    }
+
+    /**
+     * Inicia la animación de ataque guardando también su duración total
+     * (el renderer la usa para calcular el progreso del barrido).
+     * @param {number} duration
+     */
+    _startAttackAnim(duration) {
+        this.attackAnimTimer = duration;
+        this.attackAnimDuration = duration;
     }
 
     get effectiveDamage() {
@@ -163,45 +180,63 @@ export class Player {
 
         this._integrateZPhysics(dt);
 
-        // 3. Dash evasivo (Shift)
+        this.lastBoard = board;
+
+        // 3. Acción de Bloqueo con Escudo (Shift / C / Botón Central)
         const moveVec = input.getMovementVector();
-        if (
-            input.isDashJustPressed() &&
-            this.dashCooldownTimer <= 0 &&
-            this.stamina >= 18
-        ) {
-            this.stamina -= 18;
-            this.dashTimer = 0.16;
-            this.dashCooldownTimer = 0.55;
-            this.invulnerableTimer = Math.max(this.invulnerableTimer, 0.22);
+        const wantsToBlock = Boolean(!this.isAI && input.isBlockDown && input.isBlockDown());
 
-            if (moveVec.x !== 0 || moveVec.y !== 0) {
-                this.dashDirX = moveVec.x;
-                this.dashDirY = moveVec.y;
-            } else {
-                this.dashDirX = Math.cos(this.aimAngle);
-                this.dashDirY = Math.sin(this.aimAngle);
-            }
-
-            eventBus.emit(EVENTS.PLAYER_DASH, { x: this.x, y: this.y });
-            eventBus.emit(EVENTS.PARTICLE_BURST, {
-                x: this.x,
-                y: this.y,
-                z: this.z + 10,
-                count: 12,
-                color: this.colors.slashColor
-            });
+        // Si soltó el botón de bloqueo, levantamos la restricción de recuperación de guardia
+        if (!wantsToBlock) {
+            this.blockNeedsRelease = false;
         }
 
-        // 4. Movimiento en el plano XY con deslizamiento suave en esquinas
+        if (this.guardBreakTimer > 0) {
+            this.guardBreakTimer = Math.max(0, this.guardBreakTimer - dt);
+            this.isBlocking = false;
+        } else if (!this.isAI) {
+            const wasBlocking = this.isBlocking;
+            // Solo entra en guardia si no necesita soltar la tecla y tiene suficiente energía
+            this.isBlocking = wantsToBlock && !this.blockNeedsRelease && this.stamina >= 8;
+
+            if (this.isBlocking && !wasBlocking) {
+                eventBus.emit(EVENTS.PLAYER_BLOCK, { x: this.x, y: this.y });
+                eventBus.emit(EVENTS.PARTICLE_BURST, {
+                    x: this.x,
+                    y: this.y,
+                    z: 16,
+                    count: 8,
+                    color: '#facc15'
+                });
+            }
+        }
+
+        // 4. Movimiento en el plano XY: al bloquear camina a paso defensivo
         let desiredVx = 0;
         let desiredVy = 0;
 
-        if (this.dashTimer > 0) {
-            this.dashTimer = Math.max(0, this.dashTimer - dt);
-            const dashSpeed = this.effectiveSpeed * 2.65;
-            desiredVx = this.dashDirX * dashSpeed;
-            desiredVy = this.dashDirY * dashSpeed;
+        if (this.isBlocking) {
+            // Paso defensivo con escudo levantado (55% de velocidad)
+            const blockSpeed = this.effectiveSpeed * 0.55;
+            desiredVx = moveVec.x * blockSpeed;
+            desiredVy = moveVec.y * blockSpeed;
+
+            // Consumo sutil de stamina solo al desplazarse en guardia
+            if (desiredVx !== 0 || desiredVy !== 0) {
+                this.stamina = Math.max(0, this.stamina - dt * 4);
+                if (this.stamina <= 0) {
+                    this.isBlocking = false;
+                    this.guardBreakTimer = 0.85;
+                    this.blockNeedsRelease = true;
+                    eventBus.emit(EVENTS.FLOATING_TEXT, {
+                        x: this.x,
+                        y: this.y,
+                        z: 42,
+                        text: '⚠️ ¡GUARDIA ROTA!',
+                        color: '#ef4444'
+                    });
+                }
+            }
         } else {
             desiredVx = moveVec.x * this.effectiveSpeed;
             desiredVy = moveVec.y * this.effectiveSpeed;
@@ -241,21 +276,24 @@ export class Player {
 
         // 6. Habilidad Especial de Clase (Click Derecho o Tecla Q)
         if (input.isSkillJustPressed() && this.skillCooldownTimer <= 0) {
-            this.performSpecialSkill(monsters, [this, ...companions]);
-            if (interaction && board) {
+            if (this.performSpecialSkill(monsters, [this, ...companions]) && interaction && board) {
                 interaction.tryCutBushesNear(this, board, this.skillData.radius);
             }
         }
 
         // 7. Segunda Habilidad Especial de Misión Secundaria (Tecla F: Tempestad de Loretome)
         if (input.isSecondSkillJustPressed && input.isSecondSkillJustPressed()) {
-            this.performSecondSkill(monsters, [this, ...companions]);
-            if (interaction && board && this.secondSkillUnlocked) {
+            if (this.performSecondSkill(monsters, [this, ...companions]) && interaction && board) {
                 interaction.tryCutBushesNear(this, board, 135);
             }
         }
 
-        this.emitUpdate();
+        // Refresco del HUD limitado a 10 Hz (daño, curas y objetos ya lo fuerzan al instante)
+        this._hudTimer -= dt;
+        if (this._hudTimer <= 0) {
+            this._hudTimer = 0.1;
+            this.emitUpdate();
+        }
     }
 
     _updateCommonTimers(dt) {
@@ -263,7 +301,6 @@ export class Player {
         if (this.attackAnimTimer > 0) this.attackAnimTimer = Math.max(0, this.attackAnimTimer - dt);
         if (this.skillCooldownTimer > 0) this.skillCooldownTimer = Math.max(0, this.skillCooldownTimer - dt);
         if (this.secondSkillCooldownTimer > 0) this.secondSkillCooldownTimer = Math.max(0, this.secondSkillCooldownTimer - dt);
-        if (this.dashCooldownTimer > 0) this.dashCooldownTimer = Math.max(0, this.dashCooldownTimer - dt);
         if (this.invulnerableTimer > 0) this.invulnerableTimer = Math.max(0, this.invulnerableTimer - dt);
         if (this.hurtFlashTimer > 0) this.hurtFlashTimer = Math.max(0, this.hurtFlashTimer - dt);
         if (this.strengthBuffTimer > 0) this.strengthBuffTimer = Math.max(0, this.strengthBuffTimer - dt);
@@ -275,7 +312,7 @@ export class Player {
         }
 
         const stamRegen = (this.speedBuffTimer > 0 ? 32 : 24) + (this.passiveRegenUnlocked ? 8 : 0);
-        if (this.dashTimer <= 0 && this.stamina < this.maxStamina) {
+        if (!this.isBlocking && this.stamina < this.maxStamina) {
             this.stamina = Math.min(this.maxStamina, this.stamina + stamRegen * dt);
         }
     }
@@ -292,7 +329,8 @@ export class Player {
     }
 
     /**
-     * Desplaza al héroe resolviendo colisiones separadas por eje + asistencia de deslizamiento en esquinas.
+     * Desplaza al héroe resolviendo colisiones separadas por eje con deslizamiento suave
+     * y sistema anti-atasco (depenetración automática si el héroe penetra un muro/mueble).
      */
     _moveWithCollisions(dx, dy, board) {
         if (!board) {
@@ -301,32 +339,67 @@ export class Player {
             return;
         }
 
+        // 1. SISTEMA ANTI-ATASCO (DEPENETRACIÓN AUTOMÁTICA):
+        // Si el héroe se encuentra atascado dentro de una colisión (muro, mueble, cofre o jaula),
+        // buscamos de inmediato la posición libre más cercana en 8 direcciones y lo liberamos.
+        if (board.isPositionBlocked(this.x, this.y, this.radius, this.z)) {
+            let freed = false;
+            const angles = [0, Math.PI, Math.PI * 0.5, -Math.PI * 0.5, Math.PI * 0.25, -Math.PI * 0.25, Math.PI * 0.75, -Math.PI * 0.75];
+            for (let dist = 2; dist <= 24; dist += 2) {
+                for (const a of angles) {
+                    const testX = this.x + Math.cos(a) * dist;
+                    const testY = this.y + Math.sin(a) * dist;
+                    if (!board.isPositionBlocked(testX, testY, this.radius, this.z)) {
+                        this.x = testX;
+                        this.y = testY;
+                        freed = true;
+                        break;
+                    }
+                }
+                if (freed) break;
+            }
+        }
+
+        // 2. MOVIMIENTO EN EJE X
         if (dx !== 0) {
             if (!board.isPositionBlocked(this.x + dx, this.y, this.radius, this.z)) {
                 this.x += dx;
             } else {
-                const slide = Math.abs(dx) * 0.65;
-                if (!board.isPositionBlocked(this.x + dx, this.y - slide, this.radius, this.z)) {
-                    this.x += dx * 0.5;
-                    this.y -= slide;
-                } else if (!board.isPositionBlocked(this.x + dx, this.y + slide, this.radius, this.z)) {
-                    this.x += dx * 0.5;
-                    this.y += slide;
+                // Sub-paso suave hacia el muro para no frenar en seco a distancia
+                const halfX = dx * 0.5;
+                if (!board.isPositionBlocked(this.x + halfX, this.y, this.radius, this.z)) {
+                    this.x += halfX;
+                }
+                // Deslizamiento en esquinas si no hay movimiento vertical activo
+                if (dy === 0) {
+                    const slideSpeed = Math.abs(dx) * 0.75;
+                    if (!board.isPositionBlocked(this.x, this.y - slideSpeed, this.radius, this.z)) {
+                        this.y -= slideSpeed;
+                    } else if (!board.isPositionBlocked(this.x, this.y + slideSpeed, this.radius, this.z)) {
+                        this.y += slideSpeed;
+                    }
                 }
             }
         }
 
+        // 3. MOVIMIENTO EN EJE Y
         if (dy !== 0) {
             if (!board.isPositionBlocked(this.x, this.y + dy, this.radius, this.z)) {
                 this.y += dy;
             } else {
-                const slide = Math.abs(dy) * 0.65;
-                if (!board.isPositionBlocked(this.x - slide, this.y + dy, this.radius, this.z)) {
-                    this.x -= slide;
-                    this.y += dy * 0.5;
-                } else if (!board.isPositionBlocked(this.x + slide, this.y + dy, this.radius, this.z)) {
-                    this.x += slide;
-                    this.y += dy * 0.5;
+                // Sub-paso suave hacia el muro
+                const halfY = dy * 0.5;
+                if (!board.isPositionBlocked(this.x, this.y + halfY, this.radius, this.z)) {
+                    this.y += halfY;
+                }
+                // Deslizamiento en esquinas si no hay movimiento horizontal activo
+                if (dx === 0) {
+                    const slideSpeed = Math.abs(dy) * 0.75;
+                    if (!board.isPositionBlocked(this.x - slideSpeed, this.y, this.radius, this.z)) {
+                        this.x -= slideSpeed;
+                    } else if (!board.isPositionBlocked(this.x + slideSpeed, this.y, this.radius, this.z)) {
+                        this.x += slideSpeed;
+                    }
                 }
             }
         }
@@ -338,7 +411,7 @@ export class Player {
      */
     performPrimaryAttack(monsters = []) {
         this.attackTimer = this.attackCooldownMax;
-        this.attackAnimTimer = 0.22;
+        this._startAttackAnim(0.22);
 
         eventBus.emit(EVENTS.PLAYER_ATTACK, {
             x: this.x,
@@ -365,9 +438,11 @@ export class Player {
             if (monster.dead) continue;
             const dx = monster.x - this.x;
             const dy = monster.y - this.y;
-            const dist = Math.hypot(dx, dy);
+            const reach = this.attackRange + monster.radius;
+            const d2 = dx * dx + dy * dy;
 
-            if (dist <= this.attackRange + monster.radius) {
+            if (d2 <= reach * reach) {
+                const dist = Math.sqrt(d2);
                 const angleToMonster = Math.atan2(dy, dx);
                 const angleDiff = Math.abs(normalizeAngle(angleToMonster - this.aimAngle));
 
@@ -414,12 +489,12 @@ export class Player {
                     color: '#f87171'
                 });
             }
-            return;
+            return false;
         }
 
         this.stamina -= cost;
         this.skillCooldownTimer = this.skillData.cooldown;
-        this.attackAnimTimer = 0.35;
+        this._startAttackAnim(0.35);
 
         const skillRadius = this.skillData.radius;
         const dmg = Math.round(this.effectiveDamage * this.skillData.damageMultiplier);
@@ -468,6 +543,7 @@ export class Player {
                 monster.takeDamage(dmg, this.x, this.y, true, 300);
             }
         }
+        return true;
     }
 
     /**
@@ -485,9 +561,9 @@ export class Player {
                 text: '🔒 Completa la Misión III de la Archimaga Lyra [J]',
                 color: '#c084fc'
             });
-            return;
+            return false;
         }
-        if (this.secondSkillCooldownTimer > 0) return;
+        if (this.secondSkillCooldownTimer > 0) return false;
 
         const cost = 25;
         if (this.stamina < cost) {
@@ -498,12 +574,12 @@ export class Player {
                 text: '¡Sin Stamina (25)!',
                 color: '#f87171'
             });
-            return;
+            return false;
         }
 
         this.stamina -= cost;
         this.secondSkillCooldownTimer = 5.0;
-        this.attackAnimTimer = 0.38;
+        this._startAttackAnim(0.38);
 
         const radius = 140;
         const dmg = Math.round(this.effectiveDamage * 2.15);
@@ -563,6 +639,7 @@ export class Player {
                 });
             }
         }
+        return true;
     }
 
     /**
@@ -707,6 +784,78 @@ export class Player {
             return;
         }
 
+        // Si el héroe está en postura de guardia (bloqueando con escudo) y tiene stamina
+        if (this.isBlocking && this.stamina > 0) {
+            // El escudo absorbe el 90% del impacto directo reduciéndolo según su defensa efectiva
+            const blockCost = Math.max(10, Math.round(rawDamage * 0.52));
+            this.stamina = Math.max(0, this.stamina - blockCost);
+            const chipDamage = Math.max(0, Math.floor(rawDamage * 0.10) - Math.floor(this.effectiveDefense * 0.5));
+            if (chipDamage > 0) {
+                this.hp = Math.max(1, this.hp - chipDamage);
+            }
+
+            this.invulnerableTimer = 0.35;
+            this.hurtFlashTimer = 0.12;
+
+            // Retroceso defensivo amortiguado (respetando colisiones del tablero)
+            if (sourceX !== undefined && sourceY !== undefined) {
+                const angle = Math.atan2(this.y - sourceY, this.x - sourceX);
+                const kbX = Math.cos(angle) * 7;
+                const kbY = Math.sin(angle) * 7;
+                if (this.lastBoard) {
+                    this._moveWithCollisions(kbX, kbY, this.lastBoard);
+                } else {
+                    this.x += kbX;
+                    this.y += kbY;
+                }
+            }
+
+            eventBus.emit(EVENTS.PLAYER_BLOCK, { x: this.x, y: this.y });
+            eventBus.emit(EVENTS.CAMERA_SHAKE, { intensity: 3, duration: 0.14 });
+            eventBus.emit(EVENTS.PARTICLE_BURST, {
+                x: this.x,
+                y: this.y,
+                z: 18,
+                count: 14,
+                color: '#facc15'
+            });
+            eventBus.emit(EVENTS.FLOATING_TEXT, {
+                x: this.x,
+                y: this.y,
+                z: 44,
+                text: chipDamage > 0 ? `🛡️ BLOQUEO (-${chipDamage})` : '🛡️ ¡BLOQUEO!',
+                color: '#facc15'
+            });
+
+            // Rotura de guardia si el impacto consume toda la energía
+            if (this.stamina <= 0) {
+                this.isBlocking = false;
+                this.guardBreakTimer = 0.95;
+                this.blockNeedsRelease = true;
+                eventBus.emit(EVENTS.FLOATING_TEXT, {
+                    x: this.x,
+                    y: this.y,
+                    z: 56,
+                    text: '⚠️ ¡GUARDIA ROTA!',
+                    color: '#ef4444'
+                });
+                eventBus.emit(EVENTS.PARTICLE_BURST, {
+                    x: this.x,
+                    y: this.y,
+                    z: 22,
+                    count: 16,
+                    color: '#ef4444'
+                });
+            }
+
+            if (!this.isAI) {
+                this.emitUpdate();
+            } else {
+                eventBus.emit(EVENTS.PARTY_UPDATED);
+            }
+            return;
+        }
+
         const finalDamage = Math.max(2, rawDamage - this.effectiveDefense);
         this.hp = Math.max(0, this.hp - finalDamage);
         this.invulnerableTimer = 0.50;
@@ -829,14 +978,30 @@ export class CompanionHero extends Player {
 
         // 2. COMPORTAMIENTO DE APOYO DEL ELFO: Sanar al grupo si alguien está herido (< 70% HP)
         if (this.heroId === 'elf' && this.skillCooldownTimer <= 0 && this.stamina >= this.skillData.staminaCost) {
-            const injuredAlly = party.find((m) => !m.dead && m.hp < m.maxHp * 0.72);
-            if (injuredAlly && Math.hypot(injuredAlly.x - this.x, injuredAlly.y - this.y) <= 165) {
+            const healR2 = 165 * 165;
+            const needHeal = party.some((m) => {
+                if (m.dead || m.hp >= m.maxHp * 0.72) return false;
+                const hx = m.x - this.x;
+                const hy = m.y - this.y;
+                return hx * hx + hy * hy <= healR2;
+            });
+            if (needHeal) {
                 this.performSpecialSkill(monsters, party);
             }
         }
 
-        // 3. SELECCIÓN TÁCTICA DE OBJETIVO ENEMIGO
-        const target = this._selectTacticalTarget(leader, party, monsters, board, hasLOS);
+        // 3. SELECCIÓN TÁCTICA DE OBJETIVO ENEMIGO (re-evaluada cada 0.2 s; la LOS es costosa)
+        this._targetTimer -= dt;
+        if (
+            this._targetTimer <= 0 ||
+            this._targetList !== monsters ||
+            (this._target && this._target.dead)
+        ) {
+            this._targetTimer = 0.2;
+            this._targetList = monsters;
+            this._target = this._selectTacticalTarget(leader, party, monsters, board, hasLOS);
+        }
+        const target = this._target;
 
         let moveX = 0;
         let moveY = 0;
@@ -887,15 +1052,25 @@ export class CompanionHero extends Player {
                 }
 
                 // Usar habilidad especial si hay varios enemigos cerca o contra el Jefe Gárgola
-                const nearbyEnemies = monsters.filter(
-                    (m) => !m.dead && Math.hypot(m.x - this.x, m.y - this.y) <= this.skillData.radius
-                ).length;
-
-                if (
-                    this.skillCooldownTimer <= 0 &&
-                    (nearbyEnemies >= 2 || (target.isBoss && dist <= this.skillData.radius))
-                ) {
-                    this.performSpecialSkill(monsters, party);
+                if (this.skillCooldownTimer <= 0) {
+                    const skillR = this.skillData.radius;
+                    let useSkill = target.isBoss && dist <= skillR;
+                    if (!useSkill) {
+                        const r2 = skillR * skillR;
+                        let nearbyEnemies = 0;
+                        for (const m of monsters) {
+                            if (m.dead) continue;
+                            const ex = m.x - this.x;
+                            const ey = m.y - this.y;
+                            if (ex * ex + ey * ey <= r2 && ++nearbyEnemies >= 2) {
+                                useSkill = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (useSkill) {
+                        this.performSpecialSkill(monsters, party);
+                    }
                 }
             }
         } else {
@@ -927,9 +1102,10 @@ export class CompanionHero extends Player {
             if (other === this || other.dead) continue;
             const odx = this.x - other.x;
             const ody = this.y - other.y;
-            const odist = Math.hypot(odx, ody);
             const minSep = this.radius + other.radius + 8;
-            if (odist > 0 && odist < minSep) {
+            const od2 = odx * odx + ody * ody;
+            if (od2 > 0 && od2 < minSep * minSep) {
+                const odist = Math.sqrt(od2);
                 const push = (minSep - odist) / minSep;
                 moveX += (odx / odist) * push * 0.9;
                 moveY += (ody / odist) * push * 0.9;
@@ -1020,13 +1196,21 @@ export class CompanionHero extends Player {
     _selectTacticalTarget(leader, party, monsters, board, hasLOS) {
         let bestMonster = null;
         let bestScore = -Infinity;
+        const wizard = this.heroId === 'barbarian'
+            ? party.find((p) => p.heroId === 'wizard' && !p.dead)
+            : null;
 
         for (const m of monsters) {
             if (m.dead) continue;
 
-            const distToLeader = Math.hypot(m.x - leader.x, m.y - leader.y);
-            const distToSelf = Math.hypot(m.x - this.x, m.y - this.y);
-            if (distToLeader > 310 && distToSelf > 260) continue;
+            const lx = m.x - leader.x;
+            const ly = m.y - leader.y;
+            const sx = m.x - this.x;
+            const sy = m.y - this.y;
+            const dL2 = lx * lx + ly * ly;
+            const dS2 = sx * sx + sy * sy;
+            if (dL2 > 310 * 310 && dS2 > 260 * 260) continue;
+            const distToSelf = Math.sqrt(dS2);
 
             const col = Math.floor(m.x / TILE);
             const row = Math.floor(m.y / TILE);
@@ -1039,7 +1223,6 @@ export class CompanionHero extends Player {
 
             // El Bárbaro prioriza proteger al Mago o atacar al Jefe
             if (this.heroId === 'barbarian') {
-                const wizard = party.find((p) => p.heroId === 'wizard' && !p.dead);
                 if (wizard && Math.hypot(m.x - wizard.x, m.y - wizard.y) < 110) {
                     score += 140;
                 }
@@ -1065,7 +1248,7 @@ export class CompanionHero extends Player {
      */
     _performWizardRangedBolt(target, monsters) {
         this.attackTimer = this.attackCooldownMax * 1.35;
-        this.attackAnimTimer = 0.25;
+        this._startAttackAnim(0.25);
 
         eventBus.emit(EVENTS.SLASH_FX, {
             x: this.x,

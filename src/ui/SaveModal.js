@@ -8,6 +8,13 @@ import { EVENTS } from '../config/constants.js';
 import { eventBus } from '../core/EventBus.js';
 import { SaveManager } from '../core/SaveManager.js';
 
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+/** Escapa texto libre (nombres de partida/héroe guardados en BBDD) antes de insertarlo con innerHTML. */
+function esc(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+}
+
 export class SaveModal {
     /**
      * @param {Object} app - Instancia de HeroQuestApp
@@ -62,7 +69,10 @@ export class SaveModal {
     async refreshView() {
         if (!this.slotsContainerEl) return;
 
+        // Si llegan dos refrescos solapados, solo el último pinta (evita tarjetas duplicadas)
+        const token = this._renderToken = (this._renderToken || 0) + 1;
         const { slots, backend } = await SaveManager.listSlots();
+        if (token !== this._renderToken) return;
         const slotMap = new Map(slots.map((s) => [Number(s.slot_id), s]));
 
         if (this.backendBadgeEl) {
@@ -90,8 +100,8 @@ export class SaveModal {
                         <span class="shop-card-icon">${isAuto ? '🔄' : '💾'}</span>
                         <div>
                             <h4 class="shop-card-title">${slotTitle}</h4>
-                            <div style="color:#fde68a; font-size:0.84rem; font-weight:700;">${customLabel}</div>
-                            <span class="shop-card-cost">${data.hero_name} — 🪙 ${data.gold} Oro</span>
+                            <div style="color:#fde68a; font-size:0.84rem; font-weight:700;">${esc(customLabel)}</div>
+                            <span class="shop-card-cost">${esc(data.hero_name)} — 🪙 ${esc(data.gold)} Oro</span>
                         </div>
                     </div>
                     <div class="save-slot-meta">
@@ -131,14 +141,20 @@ export class SaveModal {
 
             const btnSave = card.querySelector('.btn-slot-save');
             btnSave?.addEventListener('click', async () => {
-                const rawCustom = this.customNameInput?.value?.trim();
-                const disc = this.app?.board
-                    ? this.app.board.rooms.filter((r) => r.discovered).length
-                    : 1;
-                const saveLabel = rawCustom || `Ranura ${slotId} — ${this.app.player.name} (Sala ${disc}/7)`;
-                await SaveManager.saveToSlot(slotId, this.app, saveLabel);
-                this._showFeedback(`✅ Partida guardada en la Ranura ${slotId}: «${saveLabel}».`, '#4ade80');
-                await this.refreshView();
+                if (btnSave.disabled) return;
+                btnSave.disabled = true; // evita guardados concurrentes por doble clic
+                try {
+                    const rawCustom = this.customNameInput?.value?.trim();
+                    const disc = this.app?.board
+                        ? this.app.board.rooms.filter((r) => r.discovered).length
+                        : 1;
+                    const saveLabel = rawCustom || `Ranura ${slotId} — ${this.app.player.name} (Sala ${disc}/7)`;
+                    await SaveManager.saveToSlot(slotId, this.app, saveLabel);
+                    this._showFeedback(`✅ Partida guardada en la Ranura ${slotId}: «${saveLabel}».`, '#4ade80');
+                    await this.refreshView();
+                } finally {
+                    btnSave.disabled = false;
+                }
             });
 
             const btnLoad = card.querySelector('.btn-slot-load');
@@ -165,6 +181,7 @@ export class SaveModal {
         // Renderizar Salón de la Fama (Hall of Fame)
         if (this.hofContainerEl) {
             const records = await SaveManager.getHallOfFame();
+            if (token !== this._renderToken) return;
             if (records.length === 0) {
                 this.hofContainerEl.innerHTML = '<p style="color:#94a3b8;font-size:0.82rem;">Aún no hay crónicas registradas en el Salón de la Fama.</p>';
             } else {
@@ -172,8 +189,8 @@ export class SaveModal {
                     .slice(0, 6)
                     .map((r) => `
                         <div class="hof-row">
-                            <span>${r.victory ? '🏆 Victoria' : '💀 Caído'} — <strong>${r.hero_name}</strong></span>
-                            <span>🪙 ${r.gold} Oro | ⚔️ ${r.kills} Bajas | 🚪 ${r.rooms_discovered}/7 Salas</span>
+                            <span>${r.victory ? '🏆 Victoria' : '💀 Caído'} — <strong>${esc(r.hero_name)}</strong></span>
+                            <span>🪙 ${esc(r.gold)} Oro | ⚔️ ${esc(r.kills)} Bajas | 🚪 ${esc(r.rooms_discovered)}/7 Salas</span>
                         </div>
                     `)
                     .join('');

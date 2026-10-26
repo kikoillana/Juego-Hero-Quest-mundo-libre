@@ -34,7 +34,7 @@ export class QuestsModal {
             eventBus.emit(EVENTS.TOGGLE_QUESTS);
             eventBus.emit(EVENTS.ZONE_CHANGE_REQUEST, {
                 targetZoneId: ZONE_ID.OVERWORLD,
-                fromZoneId: this.app.currentZoneId,
+                fromZoneId: this.app.activeZoneId,
                 teleportToCamp: true
             });
         });

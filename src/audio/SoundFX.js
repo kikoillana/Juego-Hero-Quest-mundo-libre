@@ -7,6 +7,19 @@
 import { EVENTS } from '../config/constants.js';
 import { eventBus } from '../core/EventBus.js';
 
+/**
+ * Desconecta los nodos de una voz cuando su fuente termina, para liberar el grafo de audio.
+ * @param {AudioScheduledSourceNode} source
+ * @param {AudioNode[]} nodes
+ */
+function disconnectOnEnd(source, nodes) {
+    source.onended = () => {
+        for (const n of nodes) {
+            try { n.disconnect(); } catch { /* ya desconectado */ }
+        }
+    };
+}
+
 export class SoundFX {
     constructor() {
         /** @type {AudioContext|null} */
@@ -83,6 +96,7 @@ export class SoundFX {
         eventBus.on(EVENTS.PLAYER_SKILL, () => this.play('skill'));
         eventBus.on(EVENTS.PLAYER_JUMP, () => this.play('jump'));
         eventBus.on(EVENTS.PLAYER_DASH, () => this.play('dash'));
+        eventBus.on(EVENTS.PLAYER_BLOCK, () => this.play('block'));
         eventBus.on(EVENTS.PLAYER_STEP, () => this.play('step'));
         eventBus.on(EVENTS.PLAYER_DAMAGED, () => this.play('player_hurt'));
         eventBus.on(EVENTS.PLAYER_HEALED, () => this.play('potion'));
@@ -180,6 +194,13 @@ export class SoundFX {
             case 'dash':
                 this._playNoiseBurst(now, 0.16, 'white', 600, 1800, 0.32);
                 this._playTone(now, 'sine', 280, 140, 0.14, 0.18);
+                break;
+
+            case 'block':
+                // Clang metálico de escudo resistente estilo Zelda
+                this._playTone(now, 'triangle', 720, 360, 0.18, 0.42);
+                this._playTone(now, 'sawtooth', 420, 180, 0.14, 0.30);
+                this._playNoiseBurst(now, 0.10, 'white', 900, 3600, 0.36);
                 break;
 
             case 'step':
@@ -337,6 +358,7 @@ export class SoundFX {
         carrier.start(startTime);
         modulator.stop(startTime + duration + 0.02);
         carrier.stop(startTime + duration + 0.02);
+        disconnectOnEnd(carrier, [modulator, modGain, carrier, filter, gain]);
     }
 
     /**
@@ -366,6 +388,7 @@ export class SoundFX {
 
         osc.start(startTime);
         osc.stop(startTime + duration + 0.04);
+        disconnectOnEnd(osc, [osc, filter, gain]);
     }
 
     /**
@@ -391,6 +414,7 @@ export class SoundFX {
 
         osc.start(startTime);
         osc.stop(startTime + duration + 0.02);
+        disconnectOnEnd(osc, [osc, gain]);
     }
 
     /**
@@ -423,5 +447,6 @@ export class SoundFX {
 
         source.start(startTime);
         source.stop(startTime + duration + 0.02);
+        disconnectOnEnd(source, [source, filter, gain]);
     }
 }

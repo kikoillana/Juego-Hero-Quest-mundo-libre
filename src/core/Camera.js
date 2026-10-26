@@ -31,9 +31,16 @@ export class Camera {
         this.shakeOffsetX = 0;
         this.shakeOffsetY = 0;
 
-        eventBus.on(EVENTS.CAMERA_SHAKE, ({ intensity = 8, duration = 0.25 } = {}) => {
+        /** @type {Function} desuscripción del EventBus */
+        this._offShake = eventBus.on(EVENTS.CAMERA_SHAKE, ({ intensity = 8, duration = 0.25 } = {}) => {
             this.triggerShake(intensity, duration);
         });
+    }
+
+    /** Libera la suscripción al EventBus (si la cámara se recrea). */
+    dispose() {
+        if (typeof this._offShake === 'function') this._offShake();
+        this._offShake = null;
     }
 
     /**

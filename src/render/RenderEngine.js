@@ -44,7 +44,7 @@ export class RenderEngine {
      * Renderiza un fotograma completo del mundo 2.5D (Mazmorra o Bosque Exterior 4x).
      */
     render(scene) {
-        const { board, player, companions = [], monsters, lootItems, particles, interaction, quests, elapsed } = scene;
+        const { board, player, companions = [], monsters, elapsed } = scene;
         const ctx = this.ctx;
         const width = this.canvas.width;
         const height = this.canvas.height;
@@ -55,16 +55,40 @@ export class RenderEngine {
 
         if (!board) return;
 
-        // 2. Aplicar transformación de Cámara 2.5D
+        // 2. Aplicar transformación de Cámara 2.5D (try/finally: una excepción no debe dejar el save() colgado)
         this.camera.applyTransform(ctx);
+        try {
+            this._renderWorld(ctx, scene);
+        } finally {
+            this.camera.restoreTransform(ctx);
+        }
+
+        // 8. Viñeta perimetral + Minimapa Táctico en esquina inferior derecha
+        this._drawScreenVignette(ctx, width, height, board.isOverworld);
+        this._drawMinimap(ctx, width, height, board, player, companions, monsters, elapsed);
+    }
+
+    /**
+     * Pasadas 3–7 en coordenadas de mundo (bajo la transformación de cámara).
+     */
+    _renderWorld(ctx, scene) {
+        const { board, player, companions = [], monsters, lootItems, particles, interaction, quests, elapsed } = scene;
         const bounds = this._getVisibleBounds(board);
         const partyCount = 1 + (companions ? companions.length : 0);
+
+        // Culling de objetos fuera de cámara (margen extra de 2 celdas para sprites altos)
+        const cMin = bounds.minCol - 2;
+        const cMax = bounds.maxCol + 2;
+        const rMin = bounds.minRow - 2;
+        const rMax = bounds.maxRow + 2;
+        const inViewCell = (col, row) => col >= cMin && col <= cMax && row >= rMin && row <= rMax;
+        const inViewPx = (x, y) => inViewCell(Math.floor(x / TILE), Math.floor(y / TILE));
 
         // 3. PASADA 1: Terreno / Suelo (Plano Z=0)
         if (board.isOverworld) {
             this._drawOverworldGround(ctx, board, elapsed, bounds);
         } else {
-            this._drawBoardFloor(ctx, board, elapsed);
+            this._drawBoardFloor(ctx, board, elapsed, bounds);
             this._drawBoardTraps(ctx, board, elapsed);
         }
 
@@ -105,6 +129,7 @@ export class RenderEngine {
         // 5a-bis. Portales Monumentales de las 4 Mazmorras en el Bosque Exterior
         if (Array.isArray(board.portals)) {
             for (const portal of board.portals) {
+                if (!inViewPx(portal.x, portal.y)) continue;
                 renderQueue.push({
                     sortY: portal.y + 18,
                     draw: () => WallRenderer.drawDungeonPortal(ctx, portal, elapsed, partyCount)
@@ -114,18 +139,25 @@ export class RenderEngine {
 
         // 5a-ter. NPCs de Misiones Secundarias en el Bosque Exterior
         if (Array.isArray(board.npcs) && board.npcs.length > 0) {
-            const questList = quests ? quests.getFullQuestList() : [];
-            const questMap = new Map(questList.map((q) => [q.id, q]));
+            // El mapa de misiones solo se construye si hay algún NPC dentro de cámara
+            let questMap = null;
             for (const npc of board.npcs) {
+                if (!inViewPx(npc.x, npc.y)) continue;
+                if (!questMap) {
+                    const questList = quests ? quests.getFullQuestList() : [];
+                    questMap = new Map(questList.map((q) => [q.id, q]));
+                }
+                const quest = questMap.get(npc.questId);
                 renderQueue.push({
                     sortY: npc.y + 6,
-                    draw: () => MiniatureRenderer.drawNPC(ctx, npc, questMap.get(npc.questId), elapsed)
+                    draw: () => MiniatureRenderer.drawNPC(ctx, npc, quest, elapsed)
                 });
             }
         }
 
         // 5b. Puertas de mazmorra
         for (const door of board.doors) {
+            if (!inViewCell(door.col, door.row)) continue;
             const fogState = board.fog[door.row]?.[door.col] ?? FOG.UNSEEN;
             if (fogState !== FOG.UNSEEN) {
                 renderQueue.push({
@@ -137,6 +169,7 @@ export class RenderEngine {
 
         // 5c. Antorchas murales y exteriores
         for (const torch of board.torches) {
+            if (!inViewCell(torch.col, torch.row)) continue;
             const fogState = board.fog[torch.row]?.[torch.col] ?? FOG.UNSEEN;
             if (fogState !== FOG.UNSEEN) {
                 renderQueue.push({
@@ -148,6 +181,7 @@ export class RenderEngine {
 
         // 5d. Muebles de Mazmorra y Objetos Interactuables del Bosque
         for (const furn of board.furniture) {
+            if (!inViewCell(furn.col, furn.row)) continue;
             const fogState = board.fog[furn.row]?.[furn.col] ?? FOG.UNSEEN;
             if (fogState !== FOG.UNSEEN) {
                 renderQueue.push({
@@ -163,6 +197,7 @@ export class RenderEngine {
                 if (item.collected) continue;
                 const col = Math.floor(item.x / TILE);
                 const row = Math.floor(item.y / TILE);
+                if (!inViewCell(col, row)) continue;
                 const fogState = board.fog[row]?.[col] ?? FOG.UNSEEN;
                 if (fogState === FOG.VISIBLE) {
                     renderQueue.push({
@@ -179,6 +214,7 @@ export class RenderEngine {
                 if (monster.dead) continue;
                 const col = Math.floor(monster.x / TILE);
                 const row = Math.floor(monster.y / TILE);
+                if (!inViewCell(col, row)) continue;
                 const fogState = board.fog[row]?.[col] ?? FOG.UNSEEN;
                 if (fogState === FOG.VISIBLE) {
                     renderQueue.push({
@@ -234,12 +270,6 @@ export class RenderEngine {
         if (particles) {
             particles.drawFloatingTexts(ctx);
         }
-
-        this.camera.restoreTransform(ctx);
-
-        // 8. Viñeta perimetral + Minimapa Táctico en esquina inferior derecha
-        this._drawScreenVignette(ctx, width, height, board.isOverworld);
-        this._drawMinimap(ctx, width, height, board, player, companions, monsters, elapsed);
     }
 
     /**
@@ -388,9 +418,13 @@ export class RenderEngine {
     /**
      * Dibuja las losas del tablero de Mazmorra HeroQuest con juntas biseladas, grietas y Escalera Imperial.
      */
-    _drawBoardFloor(ctx, board, elapsed = 0) {
-        for (let r = 0; r < board.rows; r++) {
-            for (let c = 0; c < board.cols; c++) {
+    _drawBoardFloor(ctx, board, elapsed = 0, bounds = null) {
+        const minR = bounds ? bounds.minRow : 0;
+        const maxR = bounds ? bounds.maxRow : board.rows - 1;
+        const minC = bounds ? bounds.minCol : 0;
+        const maxC = bounds ? bounds.maxCol : board.cols - 1;
+        for (let r = minR; r <= maxR; r++) {
+            for (let c = minC; c <= maxC; c++) {
                 const cellType = board.grid[r][c];
                 const fogState = board.fog[r][c];
 
@@ -596,22 +630,21 @@ export class RenderEngine {
         const flicker = Math.sin(elapsed * 9) * 6;
         const radius = 190 + flicker;
 
-        ctx.save();
-        const grad = ctx.createRadialGradient(
-            player.x,
-            player.y - player.z,
-            12,
-            player.x,
-            player.y - player.z,
-            radius
-        );
-        grad.addColorStop(0, 'rgba(255, 180, 75, 0.14)');
-        grad.addColorStop(0.6, 'rgba(255, 140, 40, 0.05)');
-        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        // Gradiente unitario cacheado; se posiciona/escala con la matriz en vez de recrearlo cada frame
+        if (!this._torchGrad) {
+            const g = ctx.createRadialGradient(0, 0, 12 / 190, 0, 0, 1);
+            g.addColorStop(0, 'rgba(255, 180, 75, 0.14)');
+            g.addColorStop(0.6, 'rgba(255, 140, 40, 0.05)');
+            g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            this._torchGrad = g;
+        }
 
-        ctx.fillStyle = grad;
+        ctx.save();
+        ctx.translate(player.x, player.y - player.z);
+        ctx.scale(radius, radius);
+        ctx.fillStyle = this._torchGrad;
         ctx.beginPath();
-        ctx.arc(player.x, player.y - player.z, radius, 0, Math.PI * 2);
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
     }
@@ -622,28 +655,29 @@ export class RenderEngine {
     _drawForestAtmosphere(ctx, board, player, elapsed) {
         if (!player) return;
 
+        // Halo solar cálido alrededor del grupo (gradiente cacheado en coordenadas locales)
+        if (!this._sunGrad) {
+            const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 260);
+            g.addColorStop(0, 'rgba(254, 240, 138, 0.10)');
+            g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            this._sunGrad = g;
+        }
         ctx.save();
-        // Halo solar cálido alrededor del grupo
-        const sunGrad = ctx.createRadialGradient(
-            player.x,
-            player.y - 20,
-            20,
-            player.x,
-            player.y - 20,
-            260
-        );
-        sunGrad.addColorStop(0, 'rgba(254, 240, 138, 0.10)');
-        sunGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = sunGrad;
+        ctx.translate(player.x, player.y - 20);
+        ctx.fillStyle = this._sunGrad;
         ctx.beginPath();
-        ctx.arc(player.x, player.y - 20, 260, 0, Math.PI * 2);
+        ctx.arc(0, 0, 260, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
 
+        ctx.save();
         // Motas de polen / luciérnagas del bosque flotando suavemente
         for (let i = 0; i < 14; i++) {
             const fx = ((i * 211 + Math.sin(elapsed * 0.7 + i) * 45) % (board.width - 100)) + 50;
             const fy = ((i * 163 + Math.cos(elapsed * 0.6 + i * 2) * 35) % (board.height - 100)) + 50;
-            if (Math.hypot(fx - player.x, fy - player.y) < 480) {
+            const fdx = fx - player.x;
+            const fdy = fy - player.y;
+            if (fdx * fdx + fdy * fdy < 480 * 480) {
                 const alpha = 0.35 + Math.sin(elapsed * 3 + i) * 0.25;
                 ctx.fillStyle = `rgba(253, 224, 71, ${alpha})`;
                 ctx.beginPath();
@@ -679,23 +713,67 @@ export class RenderEngine {
     }
 
     _drawScreenVignette(ctx, width, height, isOverworld = false) {
-        const outerR = Math.max(width, height) * 0.72;
-        const innerR = Math.min(width, height) * 0.32;
-        const grad = ctx.createRadialGradient(
-            width * 0.5,
-            height * 0.5,
-            innerR,
-            width * 0.5,
-            height * 0.5,
-            outerR
-        );
-        grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        grad.addColorStop(1, isOverworld ? 'rgba(6, 20, 10, 0.42)' : 'rgba(5, 4, 8, 0.68)');
+        // El gradiente solo depende del tamaño y la zona: se cachea
+        const key = `${width}x${height}${isOverworld ? 'o' : 'd'}`;
+        if (this._vignetteKey !== key) {
+            const outerR = Math.max(width, height) * 0.72;
+            const innerR = Math.min(width, height) * 0.32;
+            const grad = ctx.createRadialGradient(
+                width * 0.5,
+                height * 0.5,
+                innerR,
+                width * 0.5,
+                height * 0.5,
+                outerR
+            );
+            grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            grad.addColorStop(1, isOverworld ? 'rgba(6, 20, 10, 0.42)' : 'rgba(5, 4, 8, 0.68)');
+            this._vignetteKey = key;
+            this._vignetteGrad = grad;
+        }
 
-        ctx.save();
-        ctx.fillStyle = grad;
+        ctx.fillStyle = this._vignetteGrad;
         ctx.fillRect(0, 0, width, height);
-        ctx.restore();
+    }
+
+    /**
+     * Repinta el terreno del minimapa en un canvas offscreen reutilizable.
+     */
+    _redrawMinimapTerrain(board, scale, mapW, mapH) {
+        if (typeof document === 'undefined') return;
+        if (!this._minimapCanvas) {
+            this._minimapCanvas = document.createElement('canvas');
+        }
+        const cw = Math.ceil(mapW + 1);
+        const ch = Math.ceil(mapH + 1);
+        if (this._minimapCanvas.width !== cw) this._minimapCanvas.width = cw;
+        if (this._minimapCanvas.height !== ch) this._minimapCanvas.height = ch;
+        const m = this._minimapCanvas.getContext('2d');
+        m.clearRect(0, 0, cw, ch);
+
+        for (let r = 0; r < board.rows; r++) {
+            for (let c = 0; c < board.cols; c++) {
+                const fogState = board.fog[r][c];
+                if (fogState === FOG.UNSEEN) continue;
+
+                const cell = board.grid[r][c];
+                if (board.isOverworld) {
+                    if (cell === CELL.TREE || cell === CELL.CLIFF) m.fillStyle = '#14532d';
+                    else if (cell === CELL.WATER) m.fillStyle = '#2563eb';
+                    else if (cell === CELL.BRIDGE) m.fillStyle = '#d97706';
+                    else if (cell === CELL.DIRT_PATH) m.fillStyle = '#a16207';
+                    else if (cell === CELL.STONE_PLAZA) m.fillStyle = '#78716c';
+                    else m.fillStyle = '#22c55e';
+                } else {
+                    if (cell === CELL.WALL || cell === CELL.VOID) continue;
+                    if (cell === CELL.STAIRS) m.fillStyle = '#4ade80';
+                    else if (cell === CELL.CORRIDOR) m.fillStyle = '#475569';
+                    else m.fillStyle = '#64748b';
+                }
+
+                m.fillRect(c * scale, r * scale, scale + 0.4, scale + 0.4);
+            }
+        }
     }
 
     /**
@@ -728,29 +806,21 @@ export class RenderEngine {
             my - 10
         );
 
-        // Celdas del minimapa
-        for (let r = 0; r < board.rows; r++) {
-            for (let c = 0; c < board.cols; c++) {
-                const fogState = board.fog[r][c];
-                if (fogState === FOG.UNSEEN) continue;
-
-                const cell = board.grid[r][c];
-                if (board.isOverworld) {
-                    if (cell === CELL.TREE || cell === CELL.CLIFF) ctx.fillStyle = '#14532d';
-                    else if (cell === CELL.WATER) ctx.fillStyle = '#2563eb';
-                    else if (cell === CELL.BRIDGE) ctx.fillStyle = '#d97706';
-                    else if (cell === CELL.DIRT_PATH) ctx.fillStyle = '#a16207';
-                    else if (cell === CELL.STONE_PLAZA) ctx.fillStyle = '#78716c';
-                    else ctx.fillStyle = '#22c55e';
-                } else {
-                    if (cell === CELL.WALL || cell === CELL.VOID) continue;
-                    if (cell === CELL.STAIRS) ctx.fillStyle = '#4ade80';
-                    else if (cell === CELL.CORRIDOR) ctx.fillStyle = '#475569';
-                    else ctx.fillStyle = '#64748b';
-                }
-
-                ctx.fillRect(mx + c * scale, my + r * scale, scale + 0.4, scale + 0.4);
-            }
+        // Celdas del minimapa: se pintan en un canvas offscreen y solo se repintan
+        // al cambiar de tablero o cada 0.25 s (la niebla avanza lentamente)
+        if (
+            this._minimapBoard !== board ||
+            this._minimapScale !== scale ||
+            elapsed - this._minimapTime > 0.25 ||
+            elapsed < this._minimapTime
+        ) {
+            this._minimapBoard = board;
+            this._minimapScale = scale;
+            this._minimapTime = elapsed;
+            this._redrawMinimapTerrain(board, scale, mapW, mapH);
+        }
+        if (this._minimapCanvas) {
+            ctx.drawImage(this._minimapCanvas, mx, my);
         }
 
         // Marcar los 6 NPCs de Misiones Secundarias en el Bosque

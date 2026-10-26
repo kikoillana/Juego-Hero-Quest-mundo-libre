@@ -1,24 +1,55 @@
 /**
- * HeroQuest 2.5D Real-Time Dungeon Crawler
- * Estética gótica de tablero clásico, marcos de oro envejecido, pergamino de Loretome y HUD RPG.
+ * HeroQuest 2.5D — Estilo Clásico de Videojuego RPG Retro
+ * Inspirado en los grandes clásicos de acción RPG de los 90 y 2000 (HeroQuest PC, Diablo II,
+ * Baldur's Gate, Zelda: ALttP, Warcraft III y Castlevania):
+ * - Marcos de piedra tallada y bronce forjado con remaches y esquineras doradas.
+ * - Botones biselados en 3D con relieve, iluminación direccional y pulsación física táctil.
+ * - Tipografía gótica medieval y romana con sombras de alto contraste y pan de oro.
+ * - Barras de salud y energía estilo gema/cristal con reflejos especulares de cristal líquido.
+ * - Tablillas de personajes estilo cartas de tablero clásico con placas heráldicas.
+ * - Pergaminos de lore envejecidos con tinta sepia e iluminación manuscrita.
  */
 
 :root {
-    --bg-abyss: #07060a;
-    --stone-dark: rgba(18, 15, 24, 0.92);
-    --stone-panel: rgba(28, 24, 36, 0.94);
+    /* Paleta Clásica de Videojuegos RPG */
+    --bg-abyss: #070509;
+    --stone-dark: #120d18;
+    --stone-bevel-light: #453754;
+    --stone-bevel-dark: #0a070e;
+    
     --gold-bright: #facc15;
     --gold-antique: #d4af37;
-    --gold-dark: #85581A;
-    --crimson-hq: #991b1b;
+    --gold-deep: #b45309;
+    --gold-shadow: #78350f;
+    --gold-highlight: #fef08a;
+
+    --iron-dark: #14101a;
+    --iron-border: #3b3247;
+    --wood-dark: #271408;
+    --wood-deep: #160b04;
+    --wood-light: #522d13;
+
+    --crimson-blood: #991b1b;
     --crimson-bright: #ef4444;
-    --parchment-bg: #f4e4bc;
-    --parchment-dark: #d9c08c;
-    --parchment-ink: #29180b;
+    --crimson-dark: #580d0d;
+    --crimson-highlight: #fca5a5;
+
+    --parchment-bg: #f5e6c4;
+    --parchment-dark: #cfa86e;
+    --parchment-edge: #78350f;
+    --parchment-ink: #2b1807;
+
+    --text-gold: #fef08a;
+    --text-parchment: #fef3c7;
     --text-light: #f8fafc;
     --text-muted: #cbd5e1;
-    --font-display: "Cinzel", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-    --font-body: "Segoe UI", system-ui, -apple-system, sans-serif;
+    --text-shadow-hard: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 2px 4px #000;
+
+    --font-display: "Cinzel Decorative", "Cinzel", Georgia, serif;
+    --font-subdisplay: "Cinzel", "Palatino Linotype", Georgia, serif;
+    --font-gothic: "MedievalSharp", Georgia, serif;
+    --font-body: "Crimson Pro", Georgia, serif;
+    --font-ui: "Cinzel", Georgia, serif;
 }
 
 * {
@@ -26,6 +57,7 @@
     margin: 0;
     padding: 0;
     user-select: none;
+    -webkit-user-drag: none;
 }
 
 html, body {
@@ -35,12 +67,15 @@ html, body {
     background-color: var(--bg-abyss);
     color: var(--text-light);
     font-family: var(--font-body);
+    font-size: 15px;
+    image-rendering: auto;
 }
 
 #app-container {
     position: relative;
     width: 100vw;
     height: 100vh;
+    overflow: hidden;
 }
 
 #game-canvas {
@@ -55,55 +90,156 @@ html, body {
 }
 
 /* ==========================================================================
-   HUD SUPERPUESTO
+   BOTONES CLÁSICOS DE VIDEOJUEGO RPG (Bisel 3D, Relieve y Pulsación Táctil)
+   ========================================================================== */
+
+.hq-btn {
+    font-family: var(--font-ui);
+    font-weight: 800;
+    font-size: 0.84rem;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--gold-highlight);
+    background: linear-gradient(180deg, #6c4620 0%, #452b12 45%, #291808 100%);
+    border-top: 2.5px solid #fed7aa;
+    border-left: 2.5px solid #d97706;
+    border-right: 3px solid #1c0e04;
+    border-bottom: 3.5px solid #0d0602;
+    border-radius: 3px;
+    padding: 9px 16px;
+    cursor: pointer;
+    text-shadow: var(--text-shadow-hard);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    position: relative;
+    transition: filter 0.1s ease, transform 0.06s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.hq-btn:hover:not(:disabled) {
+    filter: brightness(1.22);
+    box-shadow: 0 0 12px rgba(250, 204, 21, 0.55), 0 4px 12px rgba(0, 0, 0, 0.9);
+}
+
+.hq-btn:active:not(:disabled) {
+    transform: translate(2px, 2px);
+    border-top: 3px solid #0d0602;
+    border-left: 3px solid #1c0e04;
+    border-right: 2px solid #d97706;
+    border-bottom: 2px solid #fed7aa;
+    box-shadow: inset 0 2px 7px rgba(0, 0, 0, 0.95);
+}
+
+.hq-btn:disabled {
+    opacity: 0.45;
+    filter: grayscale(0.85);
+    cursor: not-allowed;
+    border-color: #3f384c;
+    box-shadow: none;
+}
+
+/* Botón Primario: Dragón Carmesí (Confirmar, Elegir, Atacar) */
+.hq-btn-primary {
+    background: linear-gradient(180deg, #b91c1c 0%, #881337 45%, #4c0519 100%);
+    border-top-color: #fca5a5;
+    border-left-color: #ef4444;
+    border-right-color: #2a030d;
+    border-bottom-color: #170107;
+    color: #fff1f2;
+}
+
+.hq-btn-primary:hover:not(:disabled) {
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.7), 0 4px 12px rgba(0, 0, 0, 0.9);
+}
+
+/* Botones Compactos de HUD / Menús Secundarios */
+.hq-btn-sm {
+    font-size: 0.74rem;
+    padding: 6px 11px;
+    letter-spacing: 0.8px;
+    border-radius: 2px;
+}
+
+.hq-btn-sm.active-toggle {
+    background: linear-gradient(180deg, #15803d 0%, #166534 45%, #052e16 100%);
+    border-top-color: #86efac;
+    border-left-color: #22c55e;
+    border-right-color: #031b0c;
+    border-bottom-color: #010d06;
+    color: #f0fdf4;
+}
+
+/* ==========================================================================
+   HUD SUPERPUESTO ESTILO RPG CLÁSICO (Piedra Tallada, Gemas y Oro)
    ========================================================================== */
 
 #hud-overlay {
     position: fixed;
-    top: 12px;
-    left: 14px;
-    right: 14px;
+    top: 10px;
+    left: 12px;
+    right: 12px;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 14px;
+    gap: 12px;
     pointer-events: none;
     z-index: 20;
 }
 
 .hud-panel {
     pointer-events: auto;
-    background: linear-gradient(180deg, rgba(31, 26, 39, 0.94) 0%, rgba(15, 12, 20, 0.96) 100%);
-    border: 2px solid var(--gold-antique);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-    padding: 10px 14px;
+    background: radial-gradient(ellipse at 50% 20%, #241c2c 0%, #130e1a 60%, #0a070e 100%);
+    border: 3px solid #b45309;
+    outline: 2px solid #0f0a06;
+    border-radius: 4px;
+    box-shadow:
+        0 0 0 1px var(--gold-highlight),
+        inset 0 0 0 2px #451a03,
+        inset 0 0 18px rgba(0, 0, 0, 0.95),
+        0 8px 24px rgba(0, 0, 0, 0.92);
+    padding: 8px 12px;
+    position: relative;
 }
 
-/* Panel Izquierdo: Tarjeta de Héroe */
+/* Panel Izquierdo: Placa de Héroe */
 .hud-hero-card {
     display: flex;
     align-items: center;
     gap: 12px;
-    min-width: 310px;
+    min-width: 320px;
 }
 
 .hud-portrait-frame {
-    width: 78px;
-    height: 78px;
-    border: 2px solid var(--gold-bright);
-    border-radius: 6px;
+    width: 80px;
+    height: 80px;
+    border: 3px solid #b45309;
+    outline: 1.5px solid #0c0804;
+    border-radius: 3px;
     overflow: hidden;
-    background: #141118;
+    background: #0a080e;
     flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.65);
+    box-shadow:
+        0 0 0 1px var(--gold-bright),
+        inset 0 0 12px rgba(0, 0, 0, 0.9),
+        0 4px 10px rgba(0, 0, 0, 0.8);
+    position: relative;
+}
+
+.hud-portrait-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 15%;
+    display: block;
 }
 
 .hud-hero-stats {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
 }
 
 .hud-hero-header {
@@ -111,21 +247,27 @@ html, body {
     justify-content: space-between;
     align-items: baseline;
     gap: 8px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.35);
+    padding-bottom: 3px;
 }
 
 .hud-name {
     font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 1rem;
-    color: var(--gold-bright);
-    letter-spacing: 0.5px;
+    font-weight: 900;
+    font-size: 1.05rem;
+    color: var(--gold-highlight);
+    letter-spacing: 1px;
+    text-shadow: var(--text-shadow-hard);
 }
 
 .hud-subtitle {
-    font-size: 0.72rem;
-    color: var(--text-muted);
+    font-family: var(--font-gothic);
+    font-size: 0.78rem;
+    color: var(--text-gold);
+    text-shadow: 1px 1px 2px #000;
 }
 
+/* Barras de Salud y Energía: Estilo Gema / Cristal con Bisel Líquido */
 .hud-bar-group {
     display: flex;
     flex-direction: column;
@@ -135,48 +277,73 @@ html, body {
 .hud-bar-label {
     display: flex;
     justify-content: space-between;
+    font-family: var(--font-ui);
     font-size: 0.72rem;
-    font-weight: 600;
-    color: #e2e8f0;
+    font-weight: 700;
+    color: #fef3c7;
+    text-shadow: 1px 1px 2px #000;
+    letter-spacing: 0.5px;
 }
 
 .hud-bar-track {
     width: 100%;
-    height: 9px;
-    background: #09080d;
-    border: 1px solid #3f384c;
-    border-radius: 5px;
+    height: 11px;
+    background: #09060c;
+    border: 1.5px solid #573b18;
+    border-radius: 2px;
     overflow: hidden;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.95);
+    position: relative;
 }
 
 .hud-bar-fill {
     height: 100%;
     transition: width 0.15s ease-out;
+    position: relative;
+}
+
+/* Brillo superior especular de cristal */
+.hud-bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 45%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.05) 100%);
+    pointer-events: none;
 }
 
 .hp-fill {
-    background: linear-gradient(90deg, #991b1b 0%, #ef4444 100%);
+    background: linear-gradient(180deg, #f87171 0%, #dc2626 40%, #7f1d1d 100%);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
 }
 
 .stamina-fill {
-    background: linear-gradient(90deg, #1d4ed8 0%, #38bdf8 100%);
+    background: linear-gradient(180deg, #60a5fa 0%, #2563eb 40%, #1e3a8a 100%);
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
 }
 
 .hud-attributes-row {
     display: flex;
-    gap: 10px;
-    margin-top: 2px;
+    gap: 8px;
+    margin-top: 3px;
 }
 
 .attr-pill {
-    font-size: 0.75rem;
-    background: rgba(255, 255, 255, 0.06);
-    padding: 2px 8px;
-    border-radius: 4px;
-    border: 1px solid rgba(212, 175, 55, 0.35);
+    font-family: var(--font-ui);
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: linear-gradient(180deg, #2b1f13 0%, #180f08 100%);
+    padding: 2px 7px;
+    border-radius: 2px;
+    border: 1px solid #b45309;
+    color: var(--text-gold);
+    text-shadow: 1px 1px 1px #000;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
-/* Panel Central: Cinturón de Pociones y Habilidad */
+/* Panel Central: Cinturón de Pociones y Habilidades */
 .hud-belt-bar {
     display: flex;
     align-items: center;
@@ -189,48 +356,60 @@ html, body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 68px;
+    width: 66px;
     height: 64px;
-    background: rgba(15, 13, 22, 0.9);
-    border: 1.5px solid #645333;
-    border-radius: 6px;
+    background: linear-gradient(180deg, #241829 0%, #110b17 100%);
+    border: 2px solid #b45309;
+    border-radius: 3px;
     color: var(--text-light);
     cursor: pointer;
-    transition: transform 0.12s ease, border-color 0.12s ease;
+    box-shadow:
+        inset 0 0 0 1px #451a03,
+        inset 0 0 10px rgba(0, 0, 0, 0.9),
+        0 4px 8px rgba(0, 0, 0, 0.7);
+    transition: transform 0.08s ease, filter 0.08s ease;
 }
 
 .belt-slot:hover {
     transform: translateY(-2px);
     border-color: var(--gold-bright);
+    filter: brightness(1.25);
+    box-shadow: 0 0 12px rgba(250, 204, 21, 0.6);
 }
 
 .slot-key {
-    font-size: 0.65rem;
-    color: var(--gold-antique);
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 0.68rem;
+    color: var(--gold-highlight);
+    font-weight: 800;
+    text-shadow: 1px 1px 2px #000;
 }
 
 .slot-icon {
-    font-size: 1.25rem;
-    line-height: 1.2;
+    font-size: 1.35rem;
+    line-height: 1.15;
+    filter: drop-shadow(0 2px 4px #000);
 }
 
 .slot-label {
+    font-family: var(--font-gothic);
     font-size: 0.68rem;
     color: var(--text-muted);
 }
 
 .slot-badge {
     position: absolute;
-    top: 3px;
-    right: 4px;
-    background: var(--crimson-hq);
+    top: 2px;
+    right: 3px;
+    background: linear-gradient(180deg, #dc2626 0%, #7f1d1d 100%);
     color: #fff;
-    font-size: 0.68rem;
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 0.70rem;
+    font-weight: 800;
     padding: 1px 5px;
-    border-radius: 99px;
-    border: 1px solid var(--gold-antique);
+    border-radius: 2px;
+    border: 1px solid var(--gold-highlight);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
 }
 
 .belt-skill-box {
@@ -239,30 +418,35 @@ html, body {
     justify-content: center;
     padding: 6px 12px;
     height: 64px;
-    background: rgba(30, 22, 45, 0.88);
-    border: 1.5px solid var(--gold-antique);
-    border-radius: 6px;
-    min-width: 145px;
+    background: linear-gradient(180deg, #281c33 0%, #130a1c 100%);
+    border: 2px solid #b45309;
+    border-radius: 3px;
+    min-width: 148px;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.9);
 }
 
 .skill-title {
     font-family: var(--font-display);
-    font-size: 0.8rem;
-    color: #fde047;
+    font-size: 0.86rem;
+    font-weight: 800;
+    color: #fef08a;
     margin: 2px 0;
+    text-shadow: var(--text-shadow-hard);
 }
 
 .skill-ready {
-    font-size: 0.72rem;
+    font-family: var(--font-ui);
+    font-size: 0.74rem;
     color: #4ade80;
-    font-weight: 600;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px #000;
 }
 
 .skill-ready.on-cooldown {
     color: #f87171;
 }
 
-/* Panel Derecho: Contadores y Audio */
+/* Panel Derecho: Estado de Mazmorra, Oro y Controles Rápidos */
 .hud-quest-panel {
     display: flex;
     flex-direction: column;
@@ -274,8 +458,8 @@ html, body {
     display: flex;
     justify-content: space-between;
     gap: 10px;
-    border-bottom: 1px solid rgba(212, 175, 55, 0.25);
-    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.35);
+    padding-bottom: 5px;
 }
 
 .counter-item {
@@ -285,17 +469,25 @@ html, body {
 }
 
 .counter-label {
+    font-family: var(--font-ui);
     color: var(--text-muted);
     font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
 }
 
 .gold-text {
-    color: var(--gold-bright);
-    font-size: 0.95rem;
+    font-family: var(--font-ui);
+    color: var(--gold-highlight);
+    font-size: 1rem;
+    font-weight: 800;
+    text-shadow: var(--text-shadow-hard);
 }
 
 .boss-status {
+    font-family: var(--font-gothic);
     color: #fca5a5;
+    font-size: 0.88rem;
 }
 
 .boss-status.boss-slain {
@@ -305,102 +497,75 @@ html, body {
 .hud-action-buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-}
-
-/* Botones estilo HeroQuest */
-.hq-btn {
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 0.85rem;
-    color: #fef3c7;
-    background: linear-gradient(180deg, #573b1a 0%, #2e1d0b 100%);
-    border: 1.5px solid var(--gold-antique);
-    border-radius: 5px;
-    padding: 8px 14px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-}
-
-.hq-btn:hover:not(:disabled) {
-    background: linear-gradient(180deg, #784f21 0%, #452b10 100%);
-    border-color: var(--gold-bright);
-    transform: translateY(-1px);
-}
-
-.hq-btn:disabled {
-    opacity: 0.48;
-    cursor: not-allowed;
-}
-
-.hq-btn-sm {
-    font-family: var(--font-body);
-    font-size: 0.74rem;
-    padding: 5px 9px;
-}
-
-.hq-btn-sm.active-toggle {
-    background: linear-gradient(180deg, #14532d 0%, #052e16 100%);
-    border-color: #4ade80;
-}
-
-.hq-btn-primary {
-    background: linear-gradient(180deg, #b91c1c 0%, #7f1d1d 100%);
-    border-color: var(--gold-bright);
-}
-
-.hq-btn-primary:hover:not(:disabled) {
-    background: linear-gradient(180deg, #dc2626 0%, #991b1b 100%);
+    gap: 5px;
 }
 
 /* ==========================================================================
-   LEYENDA DE CONTROLES Y BANNER DE DIÁLOGO RPG
+   LEYENDA DE CONTROLES INFERIOR Y CAJA DE DIÁLOGO RPG (Estilo JRPG / Clásico)
    ========================================================================== */
 
 #controls-hint {
     position: fixed;
-    bottom: 14px;
-    left: 14px;
+    bottom: 12px;
+    left: 12px;
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    background: rgba(12, 10, 18, 0.84);
-    border: 1px solid rgba(212, 175, 55, 0.4);
-    border-radius: 6px;
+    background: radial-gradient(ellipse at 50% 50%, #1e1628 0%, #0d0814 100%);
+    border: 2px solid #b45309;
+    outline: 1.5px solid #0c0805;
+    border-radius: 3px;
     padding: 6px 12px;
-    font-size: 0.74rem;
-    color: var(--text-muted);
+    font-family: var(--font-gothic);
+    font-size: 0.82rem;
+    color: var(--text-gold);
     pointer-events: none;
     z-index: 15;
+    box-shadow:
+        0 0 0 1px var(--gold-highlight),
+        inset 0 0 10px rgba(0, 0, 0, 0.9),
+        0 6px 16px rgba(0, 0, 0, 0.85);
 }
 
 #controls-hint strong {
-    color: var(--gold-bright);
+    font-family: var(--font-ui);
+    color: var(--gold-highlight);
+    background: rgba(180, 83, 9, 0.35);
+    padding: 1px 5px;
+    border: 1px solid rgba(250, 204, 21, 0.4);
+    border-radius: 2px;
+    margin-right: 2px;
+    text-shadow: 1px 1px 1px #000;
 }
 
+/* Cuadro de Diálogo Estilo Clásico RPG (Baldur's Gate / Final Fantasy / HeroQuest) */
 #dialog-banner {
     position: fixed;
-    bottom: 22px;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    width: min(820px, 92vw);
+    width: min(840px, 94vw);
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 14px 18px;
-    background: linear-gradient(180deg, #271c15 0%, #17110d 100%);
-    border: 2.5px solid var(--gold-antique);
-    border-radius: 10px;
-    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.85), inset 0 0 18px rgba(212, 175, 55, 0.14);
+    padding: 14px 20px;
+    background: radial-gradient(ellipse at 50% 25%, #291b12 0%, #140d07 100%);
+    border: 3.5px solid #b45309;
+    outline: 2px solid #0d0804;
+    border-radius: 4px;
+    box-shadow:
+        0 0 0 1px var(--gold-highlight),
+        inset 0 0 0 2px #451a03,
+        inset 0 0 25px rgba(0, 0, 0, 0.95),
+        0 14px 40px rgba(0, 0, 0, 0.95);
     z-index: 30;
-    animation: bannerSlideUp 0.22s ease-out;
+    animation: bannerSlideUp 0.18s ease-out;
 }
 
 @keyframes bannerSlideUp {
     from {
         opacity: 0;
-        transform: translate(-50%, 16px);
+        transform: translate(-50%, 14px);
     }
     to {
         opacity: 1;
@@ -409,59 +574,69 @@ html, body {
 }
 
 .dialog-portrait-wrap {
-    width: 84px;
-    height: 84px;
-    border: 2px solid var(--gold-bright);
-    border-radius: 6px;
+    width: 86px;
+    height: 86px;
+    border: 2.5px solid #b45309;
+    border-radius: 3px;
     overflow: hidden;
     flex-shrink: 0;
-    background: #0f0c14;
+    background: #09060c;
+    box-shadow: 0 0 0 1px var(--gold-highlight), 0 4px 10px rgba(0, 0, 0, 0.9);
 }
 
 .dialog-content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 6px;
 }
 
 .dialog-header-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.35);
+    padding-bottom: 4px;
 }
 
 .dialog-speaker {
     font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 0.96rem;
-    color: var(--gold-bright);
+    font-weight: 900;
+    font-size: 1.05rem;
+    color: var(--gold-highlight);
+    letter-spacing: 1px;
+    text-shadow: var(--text-shadow-hard);
 }
 
 .dialog-quest-tag {
+    font-family: var(--font-ui);
     font-size: 0.72rem;
+    font-weight: 700;
     color: #fca5a5;
-    background: rgba(153, 27, 27, 0.35);
-    border: 1px solid rgba(248, 113, 113, 0.4);
-    padding: 2px 8px;
-    border-radius: 99px;
+    background: #580d0d;
+    border: 1px solid #ef4444;
+    padding: 2px 9px;
+    border-radius: 2px;
+    text-shadow: 1px 1px 1px #000;
 }
 
 .dialog-body-text {
-    font-size: 0.92rem;
+    font-family: var(--font-body);
+    font-size: 1.08rem;
     line-height: 1.45;
-    color: #fef3c7;
-    min-height: 2.7em;
+    color: var(--text-parchment);
+    min-height: 2.6em;
+    text-shadow: 1px 1px 2px #000;
 }
 
 /* ==========================================================================
-   MODALES GÓTICOS Y PERGAMINO DE MENTOR
+   VENTANAS Y MODALES DE VIDEOJUEGO CLÁSICO (Marcos de Piedra y Bronce Forjado)
    ========================================================================== */
 
 .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 4, 8, 0.82);
+    background: radial-gradient(circle at center, rgba(10, 7, 14, 0.88) 0%, rgba(3, 2, 5, 0.96) 100%);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -471,275 +646,537 @@ html, body {
 }
 
 .modal-window {
-    width: min(980px, 95vw);
-    max-height: 90vh;
+    width: min(1000px, 95vw);
+    max-height: 92vh;
     overflow-y: auto;
-    border-radius: 12px;
-    padding: 28px 32px;
-    box-shadow: 0 20px 55px rgba(0, 0, 0, 0.92);
+    border-radius: 4px;
+    padding: 26px 30px;
+    position: relative;
 }
 
+/* Marco Gótico de Piedra Cincelada con Esquineras Metálicas */
 .gothic-modal {
-    background: radial-gradient(circle at top, #271f31 0%, #110d17 100%);
-    border: 3px solid var(--gold-antique);
+    background: radial-gradient(ellipse at 50% 20%, #251b2e 0%, #140d1c 60%, #0a060e 100%);
+    border: 4px solid #b45309;
+    outline: 3px solid #140e0a;
+    box-shadow:
+        0 0 0 1px var(--gold-highlight),
+        inset 0 0 0 2px #451a03,
+        inset 0 0 0 4px #d97706,
+        inset 0 0 45px rgba(0, 0, 0, 0.98),
+        0 24px 60px rgba(0, 0, 0, 0.98);
 }
 
+/* Esquineras metálicas de refuerzo estilo baúl / placa medieval */
+.gothic-modal::before,
+.gothic-modal::after {
+    content: '❖';
+    position: absolute;
+    color: var(--gold-highlight);
+    font-size: 1.1rem;
+    text-shadow: 0 0 6px rgba(250, 204, 21, 0.8), 0 2px 4px #000;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.gothic-modal::before {
+    top: 6px;
+    left: 8px;
+}
+
+.gothic-modal::after {
+    top: 6px;
+    right: 8px;
+}
+
+/* Título de Videojuego: Grabado en Oro con Sombra de Alto Relieve */
 .gothic-title {
     font-family: var(--font-display);
-    font-size: 2.2rem;
+    font-size: 2.15rem;
+    font-weight: 900;
     text-align: center;
-    color: var(--gold-bright);
-    text-shadow: 0 3px 10px rgba(0, 0, 0, 0.9);
-    letter-spacing: 2px;
+    letter-spacing: 2.5px;
+    background: linear-gradient(180deg, #fffbeb 0%, #fde047 30%, #d97706 70%, #78350f 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 3px 2px #000000) drop-shadow(0 0 12px rgba(250, 204, 21, 0.4));
+    margin-bottom: 6px;
+    text-transform: uppercase;
 }
 
 .gothic-title-sm {
     font-family: var(--font-display);
-    font-size: 1.55rem;
-    color: var(--gold-bright);
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: var(--gold-highlight);
+    text-shadow: var(--text-shadow-hard);
+    letter-spacing: 1px;
 }
 
 .gothic-subtitle {
+    font-family: var(--font-gothic);
     text-align: center;
-    color: var(--text-muted);
-    margin: 6px 0 24px;
+    color: var(--text-gold);
+    margin: 4px 0 18px;
     font-size: 0.96rem;
+    text-shadow: 1px 1px 2px #000;
 }
 
-/* Selector de las 4 Clases de Héroe */
+/* ==========================================================================
+   SELECTOR DE PERSONAJES: TABLILLAS CLÁSICAS DE HÉROE (Estilo Diablo/HQ)
+   ========================================================================== */
+
+#hero-modal .modal-window {
+    width: min(1180px, 96vw);
+    padding: 24px 28px;
+}
+
 .hero-cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
 }
 
+@media (max-width: 1024px) {
+    .hero-cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 580px) {
+    .hero-cards-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Tarjeta / Placa de Selección de Héroe Estilo Videojuego */
 .hero-select-card {
-    background: linear-gradient(180deg, rgba(40, 34, 52, 0.95) 0%, rgba(20, 16, 28, 0.98) 100%);
-    border: 2px solid #6b5832;
-    border-radius: 10px;
-    padding: 16px;
+    background: radial-gradient(ellipse at 50% 15%, #2a1f13 0%, #1a120b 60%, #0d0905 100%);
+    border: 3px solid #78350f;
+    outline: 2px solid #0d0805;
+    border-radius: 4px;
+    padding: 12px 10px 14px;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 10px;
-    transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    gap: 8px;
     cursor: pointer;
+    position: relative;
+    box-shadow:
+        0 0 0 1px #d4af37,
+        inset 0 0 0 2px #271408,
+        inset 0 0 20px rgba(0, 0, 0, 0.95),
+        0 8px 24px rgba(0, 0, 0, 0.92);
+    transition: transform 0.14s ease, filter 0.14s ease, box-shadow 0.14s ease;
 }
 
 .hero-select-card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-6px) scale(1.02);
     border-color: var(--gold-bright);
-    box-shadow: 0 10px 24px rgba(250, 204, 21, 0.18);
+    filter: brightness(1.15);
+    box-shadow:
+        0 0 0 1px var(--gold-highlight),
+        0 0 24px rgba(250, 204, 21, 0.75),
+        0 14px 34px rgba(0, 0, 0, 0.98);
+}
+
+/* Remaches en las 4 esquinas de la tablilla */
+.card-stud {
+    position: absolute;
+    color: var(--gold-highlight);
+    font-size: 0.68rem;
+    pointer-events: none;
+    text-shadow: 0 0 3px rgba(250, 204, 21, 0.8), 0 1px 2px #000;
+}
+
+.stud-tl { top: 4px; left: 5px; }
+.stud-tr { top: 4px; right: 5px; }
+.stud-bl { bottom: 4px; left: 5px; }
+.stud-br { bottom: 4px; right: 5px; }
+
+/* Marco del Retrato Realista */
+.hero-card-portrait-wrap {
+    width: 100%;
+    height: 155px;
+    position: relative;
+    border-radius: 3px;
+    overflow: hidden;
+    border: 2.5px solid #b45309;
+    outline: 1.5px solid #0f0a06;
+    box-shadow:
+        0 0 0 1px var(--gold-highlight),
+        inset 0 0 14px rgba(0, 0, 0, 0.9),
+        0 4px 10px rgba(0, 0, 0, 0.85);
+    background: #09070c;
+}
+
+.hero-card-portrait-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 15%;
+    display: block;
+    transition: transform 0.25s ease;
+}
+
+.hero-select-card:hover .hero-card-portrait-img {
+    transform: scale(1.06);
+}
+
+.hero-card-portrait-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.85);
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 65%, rgba(13, 9, 5, 0.90) 100%);
 }
 
 .hero-card-canvas {
-    width: 96px;
-    height: 96px;
-    border: 2px solid var(--gold-antique);
-    border-radius: 8px;
+    width: 100%;
+    height: 100%;
+    border-radius: 3px;
+}
+
+/* Placa heráldica del nombre del héroe */
+.hero-card-header-plaque {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    background: linear-gradient(180deg, #451a03 0%, #1e0d04 100%);
+    border-top: 1.5px solid #fed7aa;
+    border-bottom: 2px solid #0a0401;
+    border-left: 1px solid #78350f;
+    border-right: 1px solid #78350f;
+    padding: 3px 0;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.hero-card-bracket {
+    color: var(--gold-bright);
+    font-size: 0.75rem;
+    text-shadow: 0 0 4px rgba(250, 204, 21, 0.6);
 }
 
 .hero-card-name {
     font-family: var(--font-display);
-    font-size: 1.2rem;
-    color: var(--gold-bright);
+    font-size: 1.15rem;
+    font-weight: 900;
+    letter-spacing: 1.2px;
+    color: var(--gold-highlight);
+    text-shadow: var(--text-shadow-hard);
 }
 
 .hero-card-title {
-    font-size: 0.75rem;
+    font-family: var(--font-gothic);
+    font-size: 0.82rem;
     color: #fca5a5;
-    margin-top: -6px;
+    margin-top: -3px;
+    text-shadow: 1px 1px 2px #000;
 }
 
 .hero-card-desc {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    color: var(--text-parchment);
     line-height: 1.35;
     flex: 1;
+    text-shadow: 1px 1px 1px #000;
 }
 
+/* Cuadrícula de Atributos: Tablilla de Piedra Cincelada */
 .hero-card-stats {
     width: 100%;
-    background: rgba(0, 0, 0, 0.35);
-    border-radius: 6px;
-    padding: 8px;
-    font-size: 0.76rem;
+    background: linear-gradient(180deg, #1a121e 0%, #0d0812 100%);
+    border: 1.5px solid #4a385c;
+    border-radius: 3px;
+    padding: 6px;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 4px;
-    text-align: left;
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.9);
 }
 
+.stat-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 3px 6px;
+    border-radius: 2px;
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    font-family: var(--font-ui);
+    font-size: 0.70rem;
+    color: #cbd5e1;
+}
+
+.stat-box strong {
+    font-size: 0.82rem;
+    color: var(--gold-highlight);
+    text-shadow: 1px 1px 1px #000;
+}
+
+/* Placa de Habilidad Especial */
 .hero-card-skill {
     width: 100%;
-    font-size: 0.75rem;
-    background: rgba(153, 27, 27, 0.25);
-    border: 1px solid rgba(248, 113, 113, 0.35);
-    border-radius: 6px;
+    background: linear-gradient(180deg, #381212 0%, #1c0808 100%);
+    border: 1.5px solid #991b1b;
+    border-radius: 3px;
     padding: 6px 8px;
-    color: #fef08a;
+    text-align: left;
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.8);
 }
 
-/* Modal de Pergamino de Lore (Mentor) */
+.hero-card-skill .skill-name {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--gold-highlight);
+    margin-bottom: 2px;
+    text-shadow: 1px 1px 1px #000;
+}
+
+.hero-card-skill .skill-desc {
+    display: block;
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    line-height: 1.25;
+    color: #fef3c7;
+}
+
+.hero-card-action-btn {
+    width: 100%;
+    margin-top: 4px;
+}
+
+/* ==========================================================================
+   MODAL DE PERGAMINO DE LORE (Mentor — Iluminación Manuscrita y Tinta Sepia)
+   ========================================================================== */
+
 .parchment-modal {
-    background: linear-gradient(160deg, var(--parchment-bg) 0%, var(--parchment-dark) 100%);
+    background: radial-gradient(ellipse at 50% 30%, #fbf1d6 0%, #ebd7a3 65%, #c8aa6c 100%);
     color: var(--parchment-ink);
-    border: 4px solid #78350f;
-    max-width: 740px;
+    border: 5px solid #78350f;
+    outline: 3px solid #3b1807;
+    border-radius: 4px;
+    max-width: 760px;
+    box-shadow:
+        0 0 0 1px #fef08a,
+        inset 0 0 0 2px #d4af37,
+        inset 0 0 45px rgba(120, 53, 15, 0.45),
+        0 24px 60px rgba(0, 0, 0, 0.98);
 }
 
 .lore-header {
     display: flex;
     align-items: center;
     gap: 18px;
-    border-bottom: 2px solid rgba(120, 53, 15, 0.35);
+    border-bottom: 2.5px solid #78350f;
     padding-bottom: 14px;
     margin-bottom: 16px;
 }
 
 .lore-portrait {
-    border: 3px solid #78350f;
-    border-radius: 8px;
+    border: 3.5px solid #78350f;
+    outline: 1.5px solid #3b1807;
+    border-radius: 4px;
     flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .lore-kicker {
-    font-weight: 700;
-    font-size: 0.8rem;
+    font-family: var(--font-ui);
+    font-weight: 800;
+    font-size: 0.78rem;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
     color: #991b1b;
 }
 
 .lore-title {
     font-family: var(--font-display);
-    font-size: 1.75rem;
-    color: #451a03;
+    font-size: 1.85rem;
+    font-weight: 900;
+    color: #3b1807;
+    letter-spacing: 1px;
+    margin-top: 2px;
 }
 
 .lore-body p {
-    font-size: 0.98rem;
+    font-family: var(--font-body);
+    font-size: 1.10rem;
     line-height: 1.55;
     margin-bottom: 12px;
-    font-family: Georgia, serif;
+    color: #2b1807;
+    text-align: justify;
 }
 
 .lore-controls-box {
-    background: rgba(69, 26, 3, 0.1);
-    border: 1.5px solid rgba(120, 53, 15, 0.45);
-    border-radius: 8px;
+    background: rgba(120, 53, 15, 0.08);
+    border: 2px solid #78350f;
+    border-radius: 3px;
     padding: 12px 16px;
     margin: 16px 0;
+    box-shadow: inset 0 0 10px rgba(120, 53, 15, 0.15);
 }
 
 .lore-controls-box h4 {
     font-family: var(--font-display);
+    font-size: 0.98rem;
     color: #7f1d1d;
     margin-bottom: 6px;
+    letter-spacing: 0.8px;
 }
 
 .lore-controls-box ul {
-    padding-left: 18px;
-    font-size: 0.86rem;
+    padding-left: 20px;
+    font-family: var(--font-body);
+    font-size: 0.98rem;
     line-height: 1.5;
+    color: #2b1807;
 }
 
 .modal-footer-actions {
     display: flex;
     justify-content: flex-end;
     gap: 12px;
-    margin-top: 18px;
+    margin-top: 20px;
+    border-top: 1px solid rgba(212, 175, 55, 0.35);
+    padding-top: 14px;
 }
 
-/* Modal de Armería del Imperio (Tienda) */
+/* ==========================================================================
+   ARMERÍA, TIENDA Y GESTOR DE PARTIDAS (Estilo Tablón de Misiones / Puesto)
+   ========================================================================== */
+
 .shop-header-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
-    border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+    border-bottom: 2px solid #b45309;
     padding-bottom: 12px;
+    margin-bottom: 12px;
 }
 
 .shop-subtitle {
-    font-size: 0.85rem;
-    color: var(--text-muted);
+    font-family: var(--font-gothic);
+    font-size: 0.88rem;
+    color: var(--text-gold);
+    margin-top: 2px;
 }
 
 .shop-gold-pill {
-    background: rgba(250, 204, 21, 0.12);
-    border: 1.5px solid var(--gold-bright);
-    border-radius: 8px;
-    padding: 8px 14px;
-    font-size: 0.9rem;
+    background: linear-gradient(180deg, #3d260c 0%, #1f1103 100%);
+    border: 2px solid var(--gold-bright);
+    outline: 1.5px solid #0d0702;
+    border-radius: 3px;
+    padding: 6px 14px;
+    font-family: var(--font-ui);
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #fef08a;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 3px 8px rgba(0, 0, 0, 0.8);
 }
 
 .shop-gold-pill strong {
-    color: var(--gold-bright);
+    color: var(--gold-highlight);
     margin-left: 6px;
+    text-shadow: 1px 1px 2px #000;
 }
 
 .shop-feedback {
-    margin: 12px 0;
-    font-size: 0.9rem;
+    margin: 8px 0 14px;
+    font-family: var(--font-gothic);
+    font-size: 0.96rem;
     color: #fde047;
-    font-weight: 600;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px #000;
 }
 
 .shop-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 14px;
 }
 
+/* Tarjeta de Artículo en Armería */
 .shop-card {
-    background: rgba(25, 20, 34, 0.92);
-    border: 1.5px solid rgba(212, 175, 55, 0.45);
-    border-radius: 8px;
+    background: radial-gradient(ellipse at 50% 20%, #2a1f14 0%, #171008 100%);
+    border: 2px solid #78350f;
+    outline: 1.5px solid #0d0804;
+    border-radius: 3px;
     padding: 14px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     gap: 10px;
+    box-shadow:
+        0 0 0 1px #d4af37,
+        inset 0 0 12px rgba(0, 0, 0, 0.95),
+        0 6px 16px rgba(0, 0, 0, 0.85);
+    transition: transform 0.1s ease, border-color 0.1s ease;
+}
+
+.shop-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--gold-bright);
+    box-shadow: 0 0 14px rgba(250, 204, 21, 0.5), 0 8px 20px rgba(0, 0, 0, 0.9);
 }
 
 .shop-card-disabled {
-    opacity: 0.65;
+    opacity: 0.55;
+    filter: grayscale(0.7);
 }
 
 .shop-card-header {
     display: flex;
     align-items: center;
     gap: 10px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+    padding-bottom: 6px;
 }
 
 .shop-card-icon {
-    font-size: 1.7rem;
+    font-size: 1.8rem;
+    filter: drop-shadow(0 2px 4px #000);
 }
 
 .shop-card-title {
     font-family: var(--font-display);
-    font-size: 0.95rem;
+    font-size: 1rem;
+    font-weight: 800;
     color: #fef08a;
+    text-shadow: var(--text-shadow-hard);
 }
 
 .shop-card-cost {
-    font-size: 0.8rem;
-    color: var(--gold-bright);
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 0.86rem;
+    color: var(--gold-highlight);
+    font-weight: 800;
+    text-shadow: 1px 1px 2px #000;
 }
 
 .shop-card-desc {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.94rem;
+    color: var(--text-parchment);
     line-height: 1.35;
+    text-shadow: 1px 1px 1px #000;
 }
 
-/* Modal de Victoria / Derrota */
+/* ==========================================================================
+   MODAL DE PAUSA, VICTORIA / DERROTA
+   ========================================================================== */
+
 .endgame-window {
-    max-width: 620px;
+    max-width: 660px;
     text-align: center;
     display: flex;
     flex-direction: column;
@@ -748,14 +1185,18 @@ html, body {
 }
 
 .endgame-portrait {
-    border: 3px solid var(--gold-bright);
-    border-radius: 10px;
+    border: 3.5px solid #b45309;
+    outline: 2px solid #0f0a06;
+    border-radius: 4px;
+    box-shadow: 0 0 0 1px var(--gold-highlight), 0 6px 18px rgba(0, 0, 0, 0.9);
 }
 
 .endgame-lore-text {
-    font-size: 0.98rem;
+    font-family: var(--font-body);
+    font-size: 1.12rem;
     line-height: 1.5;
     color: #fef3c7;
+    text-shadow: 1px 1px 2px #000;
 }
 
 .endgame-stats-grid {
@@ -763,21 +1204,24 @@ html, body {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(212, 175, 55, 0.35);
-    border-radius: 8px;
-    padding: 14px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 2px solid #573b18;
+    border-radius: 3px;
+    padding: 12px;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.95);
 }
 
-/* Ranuras de Guardado SQLite y Salón de la Fama */
+/* Ranuras de Guardado BBDD SQLite */
 .save-slot-meta {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 4px;
+    font-family: var(--font-ui);
     font-size: 0.78rem;
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.5);
     padding: 8px;
-    border-radius: 6px;
+    border-radius: 2px;
+    border: 1px solid rgba(212, 175, 55, 0.25);
 }
 
 .save-slot-date {
@@ -788,14 +1232,14 @@ html, body {
 .save-slot-actions {
     display: flex;
     gap: 6px;
-    margin-top: 4px;
+    margin-top: 6px;
 }
 
 .hof-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-height: 150px;
+    max-height: 160px;
     overflow-y: auto;
 }
 
@@ -803,9 +1247,12 @@ html, body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: rgba(15, 12, 22, 0.85);
-    border: 1px solid rgba(212, 175, 55, 0.3);
-    border-radius: 6px;
+    background: linear-gradient(180deg, #1f1627 0%, #0d0812 100%);
+    border: 1.5px solid #573b18;
+    border-radius: 2px;
     padding: 6px 12px;
+    font-family: var(--font-ui);
     font-size: 0.82rem;
+    color: #fef08a;
+    text-shadow: 1px 1px 1px #000;
 }

@@ -18,6 +18,7 @@ import {
 import { MENTOR_LORE } from '../config/dialoguesData.js';
 import { HEROES_DATA } from '../config/heroesData.js';
 import { OverworldGenerator } from './OverworldGenerator.js';
+import { circleIntersectsRect } from './boardUtils.js';
 
 export class BoardGenerator {
     /**
@@ -384,7 +385,7 @@ export class BoardGenerator {
                 prisonerHeroId,
                 prisonerName: heroObj.name,
                 roomId: 'sanctum',
-                col: 24, row: 20, w: 1, h: 1,
+                col: 25, row: 21, w: 1, h: 1,
                 goldReward: 80, potionReward: true
             });
         }
@@ -452,7 +453,7 @@ export class BoardGenerator {
 
             { type: 'fimir', col: 20.2, row: 17.5, roomId: 'treasury' },
             { type: 'fimir', col: 21.8, row: 17.5, roomId: 'treasury' },
-            { type: 'orc', col: 21.5, row: 20.2, roomId: 'treasury' },
+            { type: 'orc', col: 21.5, row: 20.9, roomId: 'treasury' },
             { type: 'skeleton', col: 19.5, row: 20.2, roomId: 'treasury' },
 
             { type: 'gargoyle', col: 27.5, row: 18.5, roomId: 'sanctum' },
@@ -711,10 +712,10 @@ export class BoardGenerator {
 
             { type: primaryMob, col: 16.2, row: 7.5, roomId: 'hall_north' },
             { type: primaryMob, col: 18.2, row: 8.5, roomId: 'hall_north' },
-            { type: secondaryMob, col: 17.5, row: 6.2, roomId: 'hall_north' },
+            { type: secondaryMob, col: 17.5, row: 7.6, roomId: 'hall_north' },
 
             { type: primaryMob, col: 25.5, row: 7.2, roomId: 'sanctuary_ne' },
-            { type: 'fimir', col: 27.2, row: 8.8, roomId: 'sanctuary_ne' },
+            { type: 'fimir', col: 27.2, row: 9.8, roomId: 'sanctuary_ne' },
 
             { type: primaryMob, col: 6.5, row: 17.5, roomId: 'crypt_sw' },
             { type: secondaryMob, col: 8.8, row: 18.5, roomId: 'crypt_sw' },
@@ -805,8 +806,13 @@ export class BoardGenerator {
         }));
 
         const doorMap = new Map();
+        // Rejilla de puertas indexada [row][col]: evita construir claves string en cada consulta de LOS/colisión
+        const doorGrid = Array.from({ length: rows }, () => new Array(cols).fill(null));
         for (const d of doors) {
             doorMap.set(`${d.col},${d.row}`, d);
+            if (d.row >= 0 && d.row < rows && d.col >= 0 && d.col < cols) {
+                doorGrid[d.row][d.col] = d;
+            }
         }
 
         const roomMap = new Map();
@@ -854,7 +860,8 @@ export class BoardGenerator {
             companionSpawns,
 
             getDoorAt(col, row) {
-                return doorMap.get(`${col},${row}`) || null;
+                if (row < 0 || row >= rows || col < 0 || col >= cols) return null;
+                return doorGrid[row][col];
             },
 
             getRoomAt(col, row) {
@@ -865,18 +872,15 @@ export class BoardGenerator {
 
             isOpaqueCell(col, row) {
                 if (row < 0 || row >= rows || col < 0 || col >= cols) return true;
-                if (grid[row][col] === CELL.WALL || grid[row][col] === CELL.VOID) return true;
-                const door = doorMap.get(`${col},${row}`);
-                if (door && !door.open) return true;
-                return false;
+                const cell = grid[row][col];
+                if (cell === CELL.WALL || cell === CELL.VOID) return true;
+                const door = doorGrid[row][col];
+                return Boolean(door && !door.open);
             },
 
+            // En mazmorra, sólido y opaco coinciden (muros, vacío y puertas cerradas)
             isSolidCell(col, row) {
-                if (row < 0 || row >= rows || col < 0 || col >= cols) return true;
-                if (grid[row][col] === CELL.WALL || grid[row][col] === CELL.VOID) return true;
-                const door = doorMap.get(`${col},${row}`);
-                if (door && !door.open) return true;
-                return false;
+                return this.isOpaqueCell(col, row);
             },
 
             isPositionBlocked(x, y, radius = 14, z = 0) {
@@ -911,6 +915,13 @@ export class BoardGenerator {
                     }
 
                     const pad = 4;
+                    // Descarte rápido por AABB antes del test círculo-rectángulo
+                    if (
+                        x + radius <= furn.x + pad || x - radius >= furn.x + furn.width - pad ||
+                        y + radius <= furn.y + pad || y - radius >= furn.y + furn.height - pad
+                    ) {
+                        continue;
+                    }
                     if (
                         circleIntersectsRect(
                             x,
@@ -930,12 +941,4 @@ export class BoardGenerator {
             }
         };
     }
-}
-
-function circleIntersectsRect(cx, cy, radius, rx, ry, rw, rh) {
-    const closestX = Math.max(rx, Math.min(cx, rx + rw));
-    const closestY = Math.max(ry, Math.min(cy, ry + rh));
-    const dx = cx - closestX;
-    const dy = cy - closestY;
-    return (dx * dx + dy * dy) < (radius * radius);
 }

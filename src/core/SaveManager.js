@@ -45,7 +45,8 @@ export class SaveManager {
                 state: t.state
             })),
             discoveredRooms,
-            fog: board.fog,
+            // El Bosque siempre es VISIBLE: no hace falta persistir su matriz de niebla
+            fog: board.isOverworld ? null : board.fog,
             lootItems: lootItems
                 .filter((l) => !l.collected)
                 .map((l) => ({
@@ -67,21 +68,22 @@ export class SaveManager {
         const { player, companions = [], monsters = [], board, lootItems = [], activeZoneId, zoneStates = new Map() } = app;
         const currentZoneData = this.serializeSingleZone(board, monsters, lootItems);
 
+        // Clave única de la zona activa (evita guardar el Bosque bajo la clave de Fellmarg)
+        const zoneKey = activeZoneId || board.zoneId || ZONE_ID.DUNGEON_FELLMARG;
+
         // Empaquetar también todas las demás zonas visitadas (Bosque y otras Mazmorras)
         const allZones = {};
         for (const [zId, zObj] of zoneStates.entries()) {
-            if (zId === activeZoneId) {
-                allZones[zId] = currentZoneData;
-            } else if (zObj && zObj.board) {
+            if (zId !== zoneKey && zObj && zObj.board) {
                 allZones[zId] = this.serializeSingleZone(zObj.board, zObj.monsters || [], zObj.lootItems || []);
             }
         }
-        allZones[activeZoneId || ZONE_ID.DUNGEON_FELLMARG] = currentZoneData;
+        allZones[zoneKey] = currentZoneData;
 
         const worldState = {
             version: 4,
             timestamp: new Date().toISOString(),
-            activeZoneId: activeZoneId || board.zoneId || ZONE_ID.DUNGEON_FELLMARG,
+            activeZoneId: zoneKey,
             rescuedHeroIds: [...(app.rescuedHeroIds || [])],
             questsState: app.quests ? app.quests.serialize() : {},
             player: {
@@ -116,8 +118,8 @@ export class SaveManager {
                 dead: c.dead,
                 downedTimer: c.downedTimer
             })),
-            // Datos de la zona activa en raíz para compatibilidad directa
-            ...currentZoneData,
+            // La zona activa vive sólo en allZones[activeZoneId] (el cargador la lee de ahí;
+            // las partidas antiguas con datos en raíz siguen siendo compatibles).
             allZones
         };
 
@@ -180,7 +182,11 @@ export class SaveManager {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
+            // Un 4xx/5xx no debe anunciarse como guardado en SQLite: cae al respaldo localStorage
+            if (!res.ok || !data.ok) {
+                throw new Error(data.error || `HTTP ${res.status}`);
+            }
             eventBus.emit(EVENTS.GAME_SAVED, { slotId, saveName: label, backend: 'sqlite' });
             return data;
         } catch (err) {
@@ -202,12 +208,10 @@ export class SaveManager {
 
         const fallbackSlots = [];
         for (let i = 0; i <= 3; i++) {
-            const raw = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${i}`);
-            if (raw) {
-                try {
-                    fallbackSlots.push(JSON.parse(raw));
-                } catch (_) {}
-            }
+            try {
+                const raw = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${i}`);
+                if (raw) fallbackSlots.push(JSON.parse(raw));
+            } catch (_) {}
         }
         return { slots: fallbackSlots, backend: 'LocalStorage (Modo sin conexión)' };
     }
@@ -223,11 +227,13 @@ export class SaveManager {
             }
         } catch (_) {}
 
-        const raw = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${slotId}`);
-        if (raw) {
-            return JSON.parse(raw);
+        try {
+            const raw = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${slotId}`);
+            return raw ? JSON.parse(raw) : null;
+        } catch (_) {
+            // Guardado local corrupto o almacenamiento bloqueado
+            return null;
         }
-        return null;
     }
 
     static async deleteSlot(slotId) {

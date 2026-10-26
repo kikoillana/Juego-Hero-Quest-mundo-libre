@@ -128,23 +128,27 @@ export class Monster {
 
         if (!player || player.dead) return;
 
-        const party = [player, ...companions].filter((h) => h && !h.dead);
-        if (party.length === 0) return;
-
-        // Elegir al héroe más cercano del grupo de 4
+        // Elegir al héroe más cercano del grupo de 4 (sin reservar arrays por frame)
+        const pdx = player.x - this.x;
+        const pdy = player.y - this.y;
         let targetHero = player;
-        let minHeroDist = Math.hypot(player.x - this.x, player.y - this.y);
-        for (const hero of party) {
-            const d = Math.hypot(hero.x - this.x, hero.y - this.y);
-            if (d < minHeroDist) {
-                minHeroDist = d;
+        let minHeroD2 = pdx * pdx + pdy * pdy;
+        for (const hero of companions) {
+            if (!hero || hero.dead) continue;
+            const hx = hero.x - this.x;
+            const hy = hero.y - this.y;
+            const d2 = hx * hx + hy * hy;
+            if (d2 < minHeroD2) {
+                minHeroD2 = d2;
                 targetHero = hero;
             }
         }
+        const minHeroDist = Math.sqrt(minHeroD2);
+        const getParty = () => [player, ...companions].filter((h) => h && !h.dead);
 
         const dxToTarget = targetHero.x - this.x;
         const dyToTarget = targetHero.y - this.y;
-        const distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
+        const distToPlayer = Math.sqrt(pdx * pdx + pdy * pdy);
 
         // 3. Gruñido periódico si el monstruo está CERCA y VISIBLE en la Niebla de Guerra
         const col = Math.floor(this.x / TILE);
@@ -180,7 +184,7 @@ export class Monster {
 
         // 4. Habilidades Especiales del Jefe Final (Gárgola del Caos)
         if (this.isBoss && this.state !== AI_STATE.PATROL) {
-            this._updateBossMechanics(dt, party);
+            this._updateBossMechanics(dt, getParty());
         }
 
         // 5. Máquina de Estados Finitos (FSM)
@@ -237,7 +241,7 @@ export class Monster {
                 if (this.stateTimer <= 0) {
                     this.state = AI_STATE.STRIKE;
                     this.stateTimer = 0.18;
-                    this._executeStrike(party);
+                    this._executeStrike(getParty());
                 }
                 break;
             }
@@ -278,8 +282,7 @@ export class Monster {
 
         // Transición a Fase 2 (<= 65% HP): Invoca refuerzos y gana velocidad
         if (this.bossPhase === 1 && hpRatio <= 0.65) {
-            this.bossPhase = 2;
-            this.speed = this.baseSpeed * 1.18;
+            this.applyBossPhase(2);
             this.vz = 360;
             this._castBossChaosNova(party, 105, 28, '¡GUARDIANES DEL CAOS, ALZAOS!');
             eventBus.emit(EVENTS.BOSS_SUMMON, {
@@ -293,10 +296,9 @@ export class Monster {
         }
 
         // Transición a Fase 3 (<= 32% HP): Frenesí de Zargon + Segunda oleada de élite
-        if (this.bossPhase === 2 && hpRatio <= 0.32) {
-            this.bossPhase = 3;
-            this.speed = this.baseSpeed * 1.34;
-            this.attackCooldown = 0.68;
+        // (else-if: un golpe enorme no dispara las fases 2 y 3 en el mismo frame)
+        else if (this.bossPhase === 2 && hpRatio <= 0.32) {
+            this.applyBossPhase(3);
             this.vz = 410;
             this._castBossChaosNova(party, 120, 34, '¡FRENESÍ DE PIEDRA ETERNA! ¡PERECED!');
             eventBus.emit(EVENTS.BOSS_SUMMON, {
@@ -319,6 +321,20 @@ export class Monster {
             } else {
                 this.bossSkillTimer = 1.5;
             }
+        }
+    }
+
+    /**
+     * Fija la fase del Jefe aplicando sus bonificaciones (también al cargar partida).
+     * @param {number} phase - 1 | 2 | 3
+     */
+    applyBossPhase(phase) {
+        this.bossPhase = phase;
+        if (phase >= 2) {
+            this.speed = this.baseSpeed * (phase === 3 ? 1.34 : 1.18);
+        }
+        if (phase === 3) {
+            this.attackCooldown = 0.68;
         }
     }
 
@@ -405,9 +421,10 @@ export class Monster {
             if (other === this || other.dead) continue;
             const odx = this.x - other.x;
             const ody = this.y - other.y;
-            const odist = Math.hypot(odx, ody);
             const minSep = this.radius + other.radius + 6;
-            if (odist > 0 && odist < minSep) {
+            const od2 = odx * odx + ody * ody;
+            if (od2 > 0 && od2 < minSep * minSep) {
+                const odist = Math.sqrt(od2);
                 const push = (minSep - odist) / minSep;
                 dirX += (odx / odist) * push * 0.85;
                 dirY += (ody / odist) * push * 0.85;
@@ -598,6 +615,12 @@ export class Monster {
 
     _moveSafe(dx, dy, board) {
         if (!board) {
+            this.x += dx;
+            this.y += dy;
+            return true;
+        }
+        // Red de seguridad: si el monstruo aparece incrustado en un mueble/muro, se le deja salir
+        if (board.isPositionBlocked(this.x, this.y, this.radius, 0)) {
             this.x += dx;
             this.y += dy;
             return true;

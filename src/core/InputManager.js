@@ -40,7 +40,7 @@ export class InputManager {
                 return;
             }
             const code = e.code;
-            const key = e.key.toLowerCase();
+            const key = (e.key || '').toLowerCase();
 
             // Prevenir scroll con flechas, barra espaciadora o recarga accidental con F5
             if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F5', 'F9'].includes(code)) {
@@ -56,6 +56,10 @@ export class InputManager {
 
         window.addEventListener('keyup', (e) => {
             this.keysDown.delete(e.code);
+            if (e.key === 'Shift' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+                this.keysDown.delete('ShiftLeft');
+                this.keysDown.delete('ShiftRight');
+            }
         });
 
         window.addEventListener('blur', () => {
@@ -66,14 +70,34 @@ export class InputManager {
             this.mouse.middleDown = false;
         });
 
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                this.keysDown.clear();
+                this.keysPressedThisFrame.clear();
+                this.mouse.leftDown = false;
+                this.mouse.rightDown = false;
+                this.mouse.middleDown = false;
+            }
+        });
+
+        // Rect del canvas cacheado: evita forzar layout síncrono en cada mousemove
+        this._canvasRect = this.canvas.getBoundingClientRect();
+        const refreshRect = () => { this._canvasRect = this.canvas.getBoundingClientRect(); };
+        window.addEventListener('resize', refreshRect);
+        window.addEventListener('scroll', refreshRect, { passive: true });
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(refreshRect).observe(this.canvas);
+        }
+
         this.canvas.addEventListener('mousemove', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
+            const rect = this._canvasRect;
             this.mouse.x = e.clientX - rect.left;
             this.mouse.y = e.clientY - rect.top;
         });
 
         this.canvas.addEventListener('mousedown', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
+            refreshRect();
+            const rect = this._canvasRect;
             this.mouse.x = e.clientX - rect.left;
             this.mouse.y = e.clientY - rect.top;
 
@@ -165,10 +189,11 @@ export class InputManager {
         return this.keysPressedThisFrame.has('Space');
     }
 
-    isDashJustPressed() {
+    isBlockDown() {
         return (
-            this.keysPressedThisFrame.has('ShiftLeft') ||
-            this.keysPressedThisFrame.has('ShiftRight') ||
+            this.keysDown.has('ShiftLeft') ||
+            this.keysDown.has('ShiftRight') ||
+            this.keysDown.has('KeyC') ||
             this.mouse.middleDown
         );
     }
@@ -202,7 +227,6 @@ export class InputManager {
         this.keysPressedThisFrame.clear();
         this.mouse.leftPressed = false;
         this.mouse.rightPressed = false;
-        this.mouse.middleDown = false;
         this.mouse.wheelDelta = 0;
     }
 }

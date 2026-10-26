@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HeroQuest 2.5D — Mundo Libre (Bosque de Loretome &amp; Mazmorras)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Cinzel+Decorative:wght@700;900&family=MedievalSharp&family=Crimson+Pro:ital,wght@0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./styles/main.css" />
 </head>
 <body>
@@ -16,7 +19,8 @@
             <!-- Panel Izquierdo: Retrato, Barras de Vida/Stamina y Atributos -->
             <div class="hud-panel hud-hero-card">
                 <div class="hud-portrait-frame">
-                    <canvas id="hud-hero-portrait" width="76" height="76"></canvas>
+                    <img id="hud-hero-portrait-img" src="./assets/heroes/barbarian.jpg" alt="Retrato del Héroe" class="hud-portrait-img" onerror="this.style.display='none'; document.getElementById('hud-hero-portrait').style.display='block';" />
+                    <canvas id="hud-hero-portrait" width="76" height="76" style="display:none;"></canvas>
                 </div>
                 <div class="hud-hero-stats">
                     <div class="hud-hero-header">
@@ -112,7 +116,7 @@
                     <button id="btn-hud-save" class="hq-btn hq-btn-sm">💾 Partidas [G]</button>
                     <button id="btn-hud-shop" class="hq-btn hq-btn-sm">🏰 Armería [B]</button>
                     <button id="btn-hud-lore" class="hq-btn hq-btn-sm">📜 Lore [L]</button>
-                    <button id="btn-hud-music" class="hq-btn hq-btn-sm active-toggle">🎵 Música: ON [M]</button>
+                    <button id="btn-hud-music" class="hq-btn hq-btn-sm">🔇 Música: OFF [M]</button>
                     <button id="btn-hud-voice" class="hq-btn hq-btn-sm active-toggle">🗣️ Gritos: ON [V]</button>
                 </div>
             </div>
@@ -122,7 +126,7 @@
         <aside id="controls-hint">
             <span><strong>WASD</strong> Mover</span>
             <span><strong>Espacio</strong> Saltar (Z)</span>
-            <span><strong>Shift</strong> Dash</span>
+            <span><strong>Shift</strong> Bloquear Escudo</span>
             <span><strong>Click Izq</strong> Tajo / Cortar</span>
             <span><strong>Click Der / Q</strong> Habilidad</span>
             <span><strong>[F]</strong> 2.ª Hab.</span>

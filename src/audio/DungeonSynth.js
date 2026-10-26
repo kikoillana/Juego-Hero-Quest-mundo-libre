@@ -24,6 +24,15 @@ export class DungeonSynth {
         this.combatBpm = 116;
         this.stepIndex = 0;
         this.timerId = null;
+        /** Instante (en tiempo de AudioContext) del próximo paso a programar. */
+        this.nextNoteTime = 0;
+        /** El jugador apagó la música manualmente (tecla M): no reactivarla al empezar/cargar partida. */
+        this.userMuted = false;
+
+        // Planificador con anticipación ("lookahead"): un temporizador corto programa con precisión
+        // en el reloj de audio todos los pasos que caen dentro de la ventana siguiente.
+        this.lookaheadSec = 0.12;
+        this.tickMs = 25;
 
         // === PATRONES DE MAZMORRA (Re Frigio / Locrio Oscuro) ===
         this.bassPattern = [
@@ -122,12 +131,13 @@ export class DungeonSynth {
 
         this.isPlaying = true;
         this.stepIndex = 0;
+        this.nextNoteTime = ctx.currentTime + 0.05;
         eventBus.emit(EVENTS.MUSIC_STATE, {
             playing: this.isPlaying,
             inCombat: this.inCombat,
             isOverworld: this.isOverworld
         });
-        this._scheduleNextStep();
+        this._scheduler();
     }
 
     stop() {
@@ -146,7 +156,9 @@ export class DungeonSynth {
     toggle() {
         if (this.isPlaying) {
             this.stop();
+            this.userMuted = true;
         } else {
+            this.userMuted = false;
             this.start();
         }
         return this.isPlaying;
@@ -162,29 +174,50 @@ export class DungeonSynth {
         });
     }
 
-    _scheduleNextStep() {
-        if (!this.isPlaying) return;
-
+    _currentStepDuration() {
         let bpm = this.exploreBpm;
         if (this.inCombat) {
             bpm = this.combatBpm;
         } else if (this.isOverworld) {
             bpm = this.overworldBpm;
         }
-
-        const stepDurationSec = (60 / bpm) * 0.5;
-
-        this._playStep(this.stepIndex, stepDurationSec);
-        this.stepIndex = (this.stepIndex + 1) % 16;
-
-        this.timerId = setTimeout(() => {
-            this._scheduleNextStep();
-        }, stepDurationSec * 1000);
+        return (60 / bpm) * 0.5;
     }
 
-    _playStep(step, stepDur) {
-        if (!this.ctx || !this.masterGain) return;
+    _scheduler() {
+        if (!this.isPlaying || !this.ctx) return;
+
         const now = this.ctx.currentTime;
+        // Si el temporizador se retrasó mucho (pestaña en segundo plano), resincronizar sin ráfaga de notas
+        if (this.nextNoteTime < now - 0.25) {
+            this.nextNoteTime = now + 0.02;
+        }
+
+        while (this.nextNoteTime < now + this.lookaheadSec) {
+            const stepDur = this._currentStepDuration();
+            this._playStep(this.stepIndex, stepDur, this.nextNoteTime);
+            this.stepIndex = (this.stepIndex + 1) % 16;
+            this.nextNoteTime += stepDur;
+        }
+
+        this.timerId = setTimeout(() => this._scheduler(), this.tickMs);
+    }
+
+    /**
+     * Desconecta los nodos de una voz cuando su fuente termina, para liberar el grafo de audio.
+     * @param {AudioScheduledSourceNode} source
+     * @param {AudioNode[]} nodes
+     */
+    _disconnectOnEnd(source, nodes) {
+        source.onended = () => {
+            for (const n of nodes) {
+                try { n.disconnect(); } catch { /* ya desconectado */ }
+            }
+        };
+    }
+
+    _playStep(step, stepDur, now = this.ctx ? this.ctx.currentTime : 0) {
+        if (!this.ctx || !this.masterGain) return;
 
         if (this.isOverworld && !this.inCombat) {
             // === MÚSICA DEL BOSQUE DE LORETOME (AVENTURA ZELDA CLÁSICO) ===
@@ -272,6 +305,7 @@ export class DungeonSynth {
         osc2.start(startTime);
         osc1.stop(startTime + duration + 0.03);
         osc2.stop(startTime + duration + 0.03);
+        this._disconnectOnEnd(osc1, [osc1, osc2, filter, gain]);
     }
 
     _synthEeriePluck(startTime, freq, duration, peakGain) {
@@ -299,6 +333,7 @@ export class DungeonSynth {
 
         osc.start(startTime);
         osc.stop(startTime + duration + 0.02);
+        this._disconnectOnEnd(osc, [osc, filter, gain]);
     }
 
     _synthGhostlyLead(startTime, freq, duration, peakGain) {
@@ -334,6 +369,7 @@ export class DungeonSynth {
         osc.start(startTime);
         lfo.stop(startTime + duration + 0.03);
         osc.stop(startTime + duration + 0.03);
+        this._disconnectOnEnd(osc, [lfo, lfoGain, osc, filter, gain]);
     }
 
     _synthFuneralBell(startTime, baseFreq) {
@@ -357,6 +393,7 @@ export class DungeonSynth {
 
             osc.start(startTime);
             osc.stop(startTime + dur + 0.03);
+            this._disconnectOnEnd(osc, [osc, gain]);
         });
     }
 
@@ -378,5 +415,6 @@ export class DungeonSynth {
 
         osc.start(startTime);
         osc.stop(startTime + 0.25);
+        this._disconnectOnEnd(osc, [osc, gain]);
     }
 }

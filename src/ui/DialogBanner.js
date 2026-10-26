@@ -63,6 +63,7 @@ export class DialogBanner {
         this.isActive = true;
         this.fullText = text;
         this.visibleChars = 0;
+        this._shownChars = -1;
         this.autoHideTimer = duration;
 
         if (this.speakerEl) this.speakerEl.textContent = speakerName;
@@ -96,8 +97,11 @@ export class DialogBanner {
                 this.fullText.length,
                 this.visibleChars + this.charsPerSecond * dt
             );
-            if (this.textEl) {
-                this.textEl.textContent = this.fullText.slice(0, Math.floor(this.visibleChars));
+            // Solo tocar el DOM cuando aparece un carácter nuevo (no en cada frame)
+            const shown = Math.floor(this.visibleChars);
+            if (this.textEl && shown !== this._shownChars) {
+                this._shownChars = shown;
+                this.textEl.textContent = this.fullText.slice(0, shown);
             }
         } else {
             this.autoHideTimer -= dt;

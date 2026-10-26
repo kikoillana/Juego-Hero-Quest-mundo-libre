@@ -6,6 +6,16 @@
 
 import { FURNITURE_TYPE, FOG, PALETTE } from '../config/constants.js';
 
+// Constantes de color hoisteadas (antes se recreaban en cada dibujado)
+const BOOK_COLORS = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#cbd5e1'];
+const PERGAMINO_COLORS = ['#fef3c7', '#fde68a', '#e0f2fe', '#fef3c7'];
+const HERO_CAGE_COLORS = {
+    barbarian: { cape: '#b91c1c', skin: '#d97706', hair: '#1c1917' },
+    dwarf: { cape: '#b45309', skin: '#f59e0b', hair: '#9a3412' },
+    elf: { cape: '#15803d', skin: '#fde68a', hair: '#facc15' },
+    wizard: { cape: '#6d28d9', skin: '#fef3c7', hair: '#e2e8f0' }
+};
+
 export class FurnitureRenderer {
     /**
      * Dibuja un mueble u objeto volumétrico 2.5D en el Canvas.
@@ -226,7 +236,7 @@ export class FurnitureRenderer {
         ctx.fillStyle = '#78350f';
         ctx.fillRect(x, y - wallH, w, 10);
 
-        const bookColors = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#cbd5e1'];
+        const bookColors = BOOK_COLORS;
         for (let shelf = 0; shelf < 3; shelf++) {
             const sy = y - wallH + 14 + shelf * 14;
             ctx.fillStyle = '#290f02';
@@ -452,14 +462,23 @@ export class FurnitureRenderer {
         const flick = Math.sin(elapsed * 14) * 2.5;
 
         // Halo de calor en el suelo del campamento
-        const halo = ctx.createRadialGradient(cx, cy - 4, 4, cx, cy - 4, 56 + flick * 2);
-        halo.addColorStop(0, 'rgba(251, 146, 60, 0.48)');
-        halo.addColorStop(0.6, 'rgba(234, 88, 12, 0.16)');
-        halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = halo;
+        // (gradiente unitario cacheado, escalado con la matriz en vez de recrearlo cada fotograma)
+        if (!this._campfireHalo) {
+            const g = ctx.createRadialGradient(0, 0, 4 / 56, 0, 0, 1);
+            g.addColorStop(0, 'rgba(251, 146, 60, 0.48)');
+            g.addColorStop(0.6, 'rgba(234, 88, 12, 0.16)');
+            g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            this._campfireHalo = g;
+        }
+        const haloR = 56 + flick * 2;
+        ctx.translate(cx, cy - 4);
+        ctx.scale(haloR, haloR);
+        ctx.fillStyle = this._campfireHalo;
         ctx.beginPath();
-        ctx.arc(cx, cy - 4, 56 + flick * 2, 0, Math.PI * 2);
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
         ctx.fill();
+        ctx.scale(1 / haloR, 1 / haloR);
+        ctx.translate(-cx, -(cy - 4));
 
         // Anillo de piedras
         ctx.fillStyle = '#78716c';
@@ -647,13 +666,7 @@ export class FurnitureRenderer {
         if (!f.opened) {
             // Héroe cautivo en el interior de la jaula
             const bob = Math.sin(elapsed * 4) * 1.5;
-            const heroColorMap = {
-                barbarian: { cape: '#b91c1c', skin: '#d97706', hair: '#1c1917' },
-                dwarf: { cape: '#b45309', skin: '#f59e0b', hair: '#9a3412' },
-                elf: { cape: '#15803d', skin: '#fde68a', hair: '#facc15' },
-                wizard: { cape: '#6d28d9', skin: '#fef3c7', hair: '#e2e8f0' }
-            };
-            const hc = heroColorMap[f.prisonerHeroId] || heroColorMap.barbarian;
+            const hc = HERO_CAGE_COLORS[f.prisonerHeroId] || HERO_CAGE_COLORS.barbarian;
 
             // Peana y silueta del héroe prisionero
             ctx.fillStyle = hc.cape;
@@ -736,7 +749,7 @@ export class FurnitureRenderer {
         ctx.fillRect(x - 3, y - boardH - 2, w + 6, 8);
 
         // Pergaminos clavados en el tablón
-        const pergColors = ['#fef3c7', '#fde68a', '#e0f2fe', '#fef3c7'];
+        const pergColors = PERGAMINO_COLORS;
         for (let i = 0; i < 4; i++) {
             const px = x + 8 + i * 16;
             const py = y - boardH + 10 + (i % 2) * 3;

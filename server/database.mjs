@@ -119,18 +119,30 @@ export class GameDatabase {
     }
 
     /**
+     * Prepara (una sola vez) y cachea las sentencias SQL reutilizables.
+     */
+    _stmt(key, sql) {
+        if (!this._stmts) this._stmts = new Map();
+        let stmt = this._stmts.get(key);
+        if (!stmt) {
+            stmt = this.db.prepare(sql);
+            this._stmts.set(key, stmt);
+        }
+        return stmt;
+    }
+
+    /**
      * Devuelve el resumen de todas las ranuras de guardado (sin cargar el JSON pesado si no se pide).
      */
     listSaveSlots() {
-        const stmt = this.db.prepare(`
+        return this._stmt('listSlots', `
             SELECT
                 slot_id, save_name, quest_id, hero_id, hero_name,
                 hp, max_hp, stamina, max_stamina, gold, kills,
                 weapon_level, armor_level, rooms_discovered, total_rooms, updated_at
             FROM save_slots
             ORDER BY slot_id ASC
-        `);
-        return stmt.all();
+        `).all();
     }
 
     /**
@@ -138,15 +150,15 @@ export class GameDatabase {
      * @param {number} slotId
      */
     getSaveSlot(slotId) {
-        const stmt = this.db.prepare(`
-            SELECT * FROM save_slots WHERE slot_id = ?
-        `);
-        const row = stmt.get(Number(slotId));
+        const row = this._stmt('getSlot', `SELECT * FROM save_slots WHERE slot_id = ?`).get(Number(slotId));
         if (!row) return null;
-        return {
-            ...row,
-            worldState: JSON.parse(row.world_state_json)
-        };
+        let worldState = {};
+        try {
+            worldState = JSON.parse(row.world_state_json);
+        } catch (err) {
+            console.error(`[DB] world_state_json corrupto en ranura ${slotId}:`, err.message);
+        }
+        return { ...row, worldState };
     }
 
     /**
@@ -155,8 +167,9 @@ export class GameDatabase {
      * @param {Object} payload
      */
     saveGame(slotId, payload) {
+        payload = payload && typeof payload === 'object' ? payload : {};
         const now = new Date().toISOString();
-        const stmt = this.db.prepare(`
+        const stmt = this._stmt('saveGame', `
             INSERT INTO save_slots (
                 slot_id, save_name, quest_id, hero_id, hero_name,
                 hp, max_hp, stamina, max_stamina, gold, kills,
@@ -188,20 +201,20 @@ export class GameDatabase {
 
         stmt.run(
             Number(slotId),
-            payload.saveName || `Ranura ${slotId}`,
-            payload.questId || 'fellmarg_book_1',
-            payload.heroId || 'barbarian',
-            payload.heroName || 'Bárbaro',
-            Math.round(payload.hp ?? 100),
-            Math.round(payload.maxHp ?? 100),
-            Math.round(payload.stamina ?? 100),
-            Math.round(payload.maxStamina ?? 100),
-            Math.round(payload.gold ?? 0),
-            Math.round(payload.kills ?? 0),
-            Math.round(payload.weaponLevel ?? 1),
-            Math.round(payload.armorLevel ?? 1),
-            Math.round(payload.roomsDiscovered ?? 1),
-            Math.round(payload.totalRooms ?? 7),
+            str(payload.saveName, `Ranura ${slotId}`),
+            str(payload.questId, 'fellmarg_book_1'),
+            str(payload.heroId, 'barbarian'),
+            str(payload.heroName, 'Bárbaro'),
+            int(payload.hp, 100),
+            int(payload.maxHp, 100),
+            int(payload.stamina, 100),
+            int(payload.maxStamina, 100),
+            int(payload.gold, 0),
+            int(payload.kills, 0),
+            int(payload.weaponLevel, 1),
+            int(payload.armorLevel, 1),
+            int(payload.roomsDiscovered, 1),
+            int(payload.totalRooms, 7),
             worldJson,
             now
         );
@@ -214,8 +227,7 @@ export class GameDatabase {
      * @param {number} slotId
      */
     deleteSaveSlot(slotId) {
-        const stmt = this.db.prepare(`DELETE FROM save_slots WHERE slot_id = ?`);
-        stmt.run(Number(slotId));
+        this._stmt('deleteSlot', `DELETE FROM save_slots WHERE slot_id = ?`).run(Number(slotId));
         return { ok: true, slotId: Number(slotId) };
     }
 
@@ -223,23 +235,23 @@ export class GameDatabase {
      * Registra una gesta finalizada en el Salón de la Fama (Hall of Fame).
      */
     recordHallOfFame(entry) {
+        entry = entry && typeof entry === 'object' ? entry : {};
         const now = new Date().toISOString();
-        const stmt = this.db.prepare(`
+        this._stmt('insertHof', `
             INSERT INTO hall_of_fame (
                 quest_id, hero_id, hero_name, victory, gold, kills,
                 rooms_discovered, weapon_level, armor_level, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        stmt.run(
-            entry.questId || 'fellmarg_book_1',
-            entry.heroId || 'barbarian',
-            entry.heroName || 'Bárbaro',
+        `).run(
+            str(entry.questId, 'fellmarg_book_1'),
+            str(entry.heroId, 'barbarian'),
+            str(entry.heroName, 'Bárbaro'),
             entry.victory ? 1 : 0,
-            Math.round(entry.gold ?? 0),
-            Math.round(entry.kills ?? 0),
-            Math.round(entry.roomsDiscovered ?? 1),
-            Math.round(entry.weaponLevel ?? 1),
-            Math.round(entry.armorLevel ?? 1),
+            int(entry.gold, 0),
+            int(entry.kills, 0),
+            int(entry.roomsDiscovered, 1),
+            int(entry.weaponLevel, 1),
+            int(entry.armorLevel, 1),
             now
         );
         return { ok: true, createdAt: now };
@@ -249,19 +261,29 @@ export class GameDatabase {
      * Obtiene las mejores gestas del Salón de la Fama.
      */
     getHallOfFame(limit = 15) {
-        const stmt = this.db.prepare(`
+        return this._stmt('listHof', `
             SELECT * FROM hall_of_fame
             ORDER BY victory DESC, gold DESC, kills DESC, id DESC
             LIMIT ?
-        `);
-        return stmt.all(Number(limit));
+        `).all(int(limit, 15));
     }
 
     /**
      * Lista las campañas registradas en quests_catalog.
      */
     listQuests() {
-        const stmt = this.db.prepare(`SELECT * FROM quests_catalog ORDER BY difficulty ASC`);
-        return stmt.all();
+        return this._stmt('listQuests', `SELECT * FROM quests_catalog ORDER BY difficulty ASC`).all();
     }
+}
+
+/** Convierte a entero seguro (evita NaN que violaría restricciones NOT NULL). */
+function int(value, fallback) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.round(n) : fallback;
+}
+
+/** Normaliza a texto no vacío (máx. 120 caracteres). */
+function str(value, fallback) {
+    if (value === undefined || value === null || value === '') return fallback;
+    return String(value).slice(0, 120);
 }

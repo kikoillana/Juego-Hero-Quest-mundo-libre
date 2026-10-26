@@ -1,0 +1,5 @@
+System.ComponentModel.Win32Exception (0x80004005): El sistema no puede encontrar el archivo especificado
+   en System.Diagnostics.Process.StartWithCreateProcess(ProcessStartInfo startInfo)
+   en System.Diagnostics.Process.Start(ProcessStartInfo startInfo)
+   en HeroQuest25DLauncher.Program.StartNodeBackend(String baseDir)
+   en HeroQuest25DLauncher.Program.Main(String[] args)

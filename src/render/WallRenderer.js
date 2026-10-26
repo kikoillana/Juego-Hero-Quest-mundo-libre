@@ -9,6 +9,33 @@ import { TILE, WALL_H, CELL, FOG, PALETTE } from '../config/constants.js';
 
 export class WallRenderer {
     /**
+     * Gradientes cacheados en coordenadas locales (se reutilizan trasladando la matriz
+     * en lugar de crear un CanvasGradient nuevo por bloque y por fotograma).
+     */
+    static _linearGrad(ctx, key, top, bottom) {
+        if (!this._gradCache) this._gradCache = new Map();
+        let g = this._gradCache.get(key);
+        if (!g) {
+            g = ctx.createLinearGradient(0, 0, 0, WALL_H);
+            g.addColorStop(0, top);
+            g.addColorStop(1, bottom);
+            this._gradCache.set(key, g);
+        }
+        return g;
+    }
+
+    static _torchHaloGrad(ctx) {
+        if (!this._torchHalo) {
+            const g = ctx.createRadialGradient(0, 0, 1 / 22, 0, 0, 1);
+            g.addColorStop(0, 'rgba(251, 191, 36, 0.65)');
+            g.addColorStop(0.5, 'rgba(249, 115, 22, 0.28)');
+            g.addColorStop(1, 'rgba(249, 115, 22, 0)');
+            this._torchHalo = g;
+        }
+        return this._torchHalo;
+    }
+
+    /**
      * Dibuja un bloque de muro extruido en 2.5D correspondiente a la celda (col, row).
      */
     static drawWallBlock(ctx, board, col, row) {
@@ -37,11 +64,10 @@ export class WallRenderer {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
             ctx.fillRect(x, y + TILE, TILE, 10);
 
-            const grad = ctx.createLinearGradient(x, frontY, x, y + TILE);
-            grad.addColorStop(0, PALETTE.WALL_FRONT_UPPER);
-            grad.addColorStop(1, PALETTE.WALL_FRONT_LOWER);
-            ctx.fillStyle = grad;
-            ctx.fillRect(x, frontY, TILE, WALL_H);
+            ctx.fillStyle = this._linearGrad(ctx, 'wall', PALETTE.WALL_FRONT_UPPER, PALETTE.WALL_FRONT_LOWER);
+            ctx.translate(x, frontY);
+            ctx.fillRect(0, 0, TILE, WALL_H);
+            ctx.translate(-x, -frontY);
 
             ctx.strokeStyle = PALETTE.WALL_MORTAR;
             ctx.lineWidth = 1.2;
@@ -176,11 +202,11 @@ export class WallRenderer {
         ctx.fillRect(x, y + TILE, TILE, 9);
 
         // Pared rocosa estriada marrón/ocre
-        const grad = ctx.createLinearGradient(x, y + TILE - WALL_H, x, y + TILE);
-        grad.addColorStop(0, PALETTE.CLIFF_FRONT_UPPER);
-        grad.addColorStop(1, PALETTE.CLIFF_FRONT_LOWER);
-        ctx.fillStyle = grad;
-        ctx.fillRect(x, y + TILE - WALL_H, TILE, WALL_H);
+        const cliffFrontY = y + TILE - WALL_H;
+        ctx.fillStyle = this._linearGrad(ctx, 'cliff', PALETTE.CLIFF_FRONT_UPPER, PALETTE.CLIFF_FRONT_LOWER);
+        ctx.translate(x, cliffFrontY);
+        ctx.fillRect(0, 0, TILE, WALL_H);
+        ctx.translate(-x, -cliffFrontY);
 
         // Grietas verticales de roca
         ctx.strokeStyle = '#291d12';
@@ -436,14 +462,15 @@ export class WallRenderer {
         ctx.fillStyle = '#78350f';
         ctx.fillRect(baseX - 2, baseY - 4, 4, 7);
 
-        const halo = ctx.createRadialGradient(baseX, baseY - 7, 1, baseX, baseY - 7, 22 + flicker);
-        halo.addColorStop(0, 'rgba(251, 191, 36, 0.65)');
-        halo.addColorStop(0.5, 'rgba(249, 115, 22, 0.28)');
-        halo.addColorStop(1, 'rgba(249, 115, 22, 0)');
-        ctx.fillStyle = halo;
+        const haloR = 22 + flicker;
+        ctx.translate(baseX, baseY - 7);
+        ctx.scale(haloR, haloR);
+        ctx.fillStyle = this._torchHaloGrad(ctx);
         ctx.beginPath();
-        ctx.arc(baseX, baseY - 7, 22 + flicker, 0, Math.PI * 2);
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
         ctx.fill();
+        ctx.scale(1 / haloR, 1 / haloR);
+        ctx.translate(-baseX, -(baseY - 7));
 
         ctx.fillStyle = '#f97316';
         ctx.beginPath();

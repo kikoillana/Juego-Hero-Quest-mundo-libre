@@ -115,7 +115,7 @@ class HeroQuestApp {
     }
 
     /**
-     * Construye las 4 tarjetas interactivas de selección de clase con retratos vectoriales en vivo.
+     * Construye las 4 tarjetas interactivas de selección de clase con retratos realistas de alta definición.
      */
     _buildHeroSelectionModal() {
         const gridEl = document.getElementById('hero-selection-grid');
@@ -126,26 +126,41 @@ class HeroQuestApp {
         for (const hero of HERO_LIST) {
             const card = document.createElement('div');
             card.className = 'hero-select-card';
+            const portraitSrc = hero.portrait || `./assets/heroes/${hero.id}.jpg`;
             card.innerHTML = `
-                <canvas class="hero-card-canvas" width="96" height="96"></canvas>
-                <h3 class="hero-card-name">${hero.name}</h3>
+                <span class="card-stud stud-tl">◆</span>
+                <span class="card-stud stud-tr">◆</span>
+                <span class="card-stud stud-bl">◆</span>
+                <span class="card-stud stud-br">◆</span>
+                <div class="hero-card-portrait-wrap">
+                    <img src="${portraitSrc}" alt="${hero.name}" class="hero-card-portrait-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                    <canvas class="hero-card-canvas" width="160" height="160" style="display:none;"></canvas>
+                    <div class="hero-card-portrait-overlay"></div>
+                </div>
+                <div class="hero-card-header-plaque">
+                    <span class="hero-card-bracket">✦</span>
+                    <h3 class="hero-card-name">${hero.name}</h3>
+                    <span class="hero-card-bracket">✦</span>
+                </div>
                 <span class="hero-card-title">${hero.title}</span>
                 <p class="hero-card-desc">${hero.description}</p>
                 <div class="hero-card-stats">
-                    <span>❤️ Vida: <strong>${hero.stats.maxHp}</strong></span>
-                    <span>⚡ Stamina: <strong>${hero.stats.maxStamina}</strong></span>
-                    <span>⚔️ Ataque: <strong>${hero.stats.attackDamage}</strong></span>
-                    <span>🛡️ Defensa: <strong>${hero.stats.defense}</strong></span>
+                    <div class="stat-box"><span>❤️ VIDA</span><strong>${hero.stats.maxHp}</strong></div>
+                    <div class="stat-box"><span>⚡ STAMINA</span><strong>${hero.stats.maxStamina}</strong></div>
+                    <div class="stat-box"><span>⚔️ ATAQUE</span><strong>${hero.stats.attackDamage}</strong></div>
+                    <div class="stat-box"><span>🛡️ DEFENSA</span><strong>${hero.stats.defense}</strong></div>
                 </div>
                 <div class="hero-card-skill">
-                    <strong>Habilidad: ${hero.skill.name}</strong><br/>
-                    <span>${hero.skill.description}</span>
+                    <strong class="skill-name">⚔️ ${hero.skill.name}</strong>
+                    <span class="skill-desc">${hero.skill.description}</span>
                 </div>
-                <button class="hq-btn hq-btn-primary" style="width:100%;">Elegir ${hero.name}</button>
+                <button class="hq-btn hq-btn-primary hero-card-action-btn">⚔️ ELEGIR ${hero.name.toUpperCase()} ⚔️</button>
             `;
 
             const portraitCanvas = card.querySelector('canvas');
-            PortraitRenderer.renderToCanvas(portraitCanvas, hero.id);
+            if (portraitCanvas) {
+                PortraitRenderer.renderToCanvas(portraitCanvas, hero.id);
+            }
 
             card.addEventListener('click', () => {
                 this.selectHeroAndStart(hero.id);
@@ -219,7 +234,7 @@ class HeroQuestApp {
                 this.player.hp = this.player.maxHp;
                 this.player.stamina = this.player.maxStamina;
             }
-            this.synth.start();
+            this._startMusicIfEnabled();
             this.loop.setState(GAME_STATE.PLAYING);
             this.transitionToZone(ZONE_ID.OVERWORLD, {
                 fromZoneId: this.activeZoneId,
@@ -464,8 +479,10 @@ class HeroQuestApp {
                 }
             }
 
-            setTimeout(() => {
-                if (this.player && !this.player.dead) {
+            this._clearEndgameTimer();
+            this._endgameTimer = setTimeout(() => {
+                this._endgameTimer = null;
+                if (this.player && !this.player.dead && this.loop.getState() === GAME_STATE.PLAYING) {
                     this.triggerEndgame(true);
                 }
             }, 1500);
@@ -473,8 +490,12 @@ class HeroQuestApp {
 
         // Derrota del Jugador
         eventBus.on(EVENTS.GAME_DEFEAT, () => {
-            setTimeout(() => {
-                this.triggerEndgame(false);
+            this._clearEndgameTimer();
+            this._endgameTimer = setTimeout(() => {
+                this._endgameTimer = null;
+                if (this.loop.getState() === GAME_STATE.PLAYING) {
+                    this.triggerEndgame(false);
+                }
             }, 900);
         });
 
@@ -625,6 +646,10 @@ class HeroQuestApp {
         const newAlly = new CompanionHero(heroId, x, y, slotIndex);
         newAlly.weaponLevel = this.player.weaponLevel;
         newAlly.armorLevel = this.player.armorLevel;
+        newAlly.questDefenseBonus = this.player.questDefenseBonus || 0;
+        if (this.player.equippedWeapon) {
+            newAlly.equipSpecialWeapon(this.player.equippedWeapon);
+        }
         newAlly.vz = 230;
         this.companions.push(newAlly);
 
@@ -665,11 +690,31 @@ class HeroQuestApp {
     }
 
     /**
+     * Cancela el temporizador pendiente del modal de Victoria/Derrota
+     * (evita que salte sobre una partida recién cargada o una zona nueva).
+     */
+    _clearEndgameTimer() {
+        if (this._endgameTimer) {
+            clearTimeout(this._endgameTimer);
+            this._endgameTimer = null;
+        }
+    }
+
+    /**
+     * Arranca la música salvo que el jugador la haya silenciado con [M].
+     */
+    _startMusicIfEnabled() {
+        if (!this.synth.userMuted) {
+            this.synth.start();
+        }
+    }
+
+    /**
      * Inicia una nueva partida con la clase de héroe elegida (comenzando en solitario 1/4).
      */
     selectHeroAndStart(heroId) {
         this.sfx.ensureContext();
-        this.synth.start();
+        this._startMusicIfEnabled();
 
         this._setupWorld(heroId, false);
 
@@ -795,6 +840,7 @@ class HeroQuestApp {
         this.board = nextZone.board;
         this.monsters = nextZone.monsters;
         this.lootItems = nextZone.lootItems;
+        this.board._fogKey = null; // forzar recálculo de la Niebla de Guerra al entrar
         this.particles.clear();
         this.bubbles.clear();
         this.interaction.activeHighlight = null;
@@ -906,6 +952,7 @@ class HeroQuestApp {
      * @param {boolean} [isPreview=false]
      */
     _setupWorld(heroId, isPreview = false) {
+        this._clearEndgameTimer();
         this.zoneStates.clear();
         this.rescuedHeroIds = [];
         this.companions = [];
@@ -1010,7 +1057,11 @@ class HeroQuestApp {
                 m.hp = mData.hp;
                 m.maxHp = mData.maxHp || m.maxHp;
                 m.state = mData.state || AI_STATE.PATROL;
-                m.bossPhase = mData.bossPhase || 1;
+                if (typeof m.applyBossPhase === 'function') {
+                    m.applyBossPhase(mData.bossPhase || 1);
+                } else {
+                    m.bossPhase = mData.bossPhase || 1;
+                }
                 return m;
             })
             : board.monsterSpawns.map(
@@ -1036,8 +1087,9 @@ class HeroQuestApp {
         const ws = saveRecord?.worldState;
         if (!ws || !ws.player) return;
 
+        this._clearEndgameTimer();
         this.sfx.ensureContext();
-        this.synth.start();
+        this._startMusicIfEnabled();
 
         this.zoneStates.clear();
         this.particles.clear();
@@ -1102,6 +1154,11 @@ class HeroQuestApp {
                 comp.downedTimer = cData.downedTimer || 0;
                 comp.weaponLevel = this.player.weaponLevel;
                 comp.armorLevel = this.player.armorLevel;
+                // Re-aplicar recompensas de misiones compartidas por el grupo (igual que QuestSystem)
+                comp.questDefenseBonus = this.player.questDefenseBonus || 0;
+                if (this.player.equippedWeapon) {
+                    comp.equipSpecialWeapon(this.player.equippedWeapon);
+                }
                 return comp;
             });
         } else {

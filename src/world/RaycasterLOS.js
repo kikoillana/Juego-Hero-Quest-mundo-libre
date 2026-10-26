@@ -25,6 +25,18 @@ export class RaycasterLOS {
 
         const { rows, cols, fog } = board;
 
+        const originCol = Math.floor(playerX / TILE);
+        const originRow = Math.floor(playerY / TILE);
+
+        // 0. Caché: la niebla sólo cambia si el héroe cambia de baldosa, se abre una puerta
+        //    (board.doorVersion) o se sustituye la matriz fog (carga de partida / cambio de zona).
+        const fogKey = `${originCol},${originRow},${radiusTiles},${board.doorVersion || 0}`;
+        if (board._fogKey === fogKey && board._fogRef === fog) {
+            return;
+        }
+        board._fogKey = fogKey;
+        board._fogRef = fog;
+
         // 1. Degradar todas las celdas actualmente VISIBLES (2) al estado EXPLORADO (1)
         for (let r = 0; r < rows; r++) {
             const rowFog = fog[r];
@@ -35,8 +47,6 @@ export class RaycasterLOS {
             }
         }
 
-        const originCol = Math.floor(playerX / TILE);
-        const originRow = Math.floor(playerY / TILE);
         const maxRadius = Math.ceil(radiusTiles);
         const radiusSq = radiusTiles * radiusTiles;
 
@@ -59,12 +69,13 @@ export class RaycasterLOS {
         // 3. Si el héroe está dentro de una sala descubierta, iluminar suavemente los muros perimetrales de la sala
         const currentRoom = board.getRoomAt(originCol, originRow);
         if (currentRoom) {
+            const perimR2 = (radiusTiles + 2) * (radiusTiles + 2);
             for (let r = currentRoom.r1 - 1; r <= currentRoom.r2 + 1; r++) {
                 for (let c = currentRoom.c1 - 1; c <= currentRoom.c2 + 1; c++) {
                     if (r >= 0 && r < rows && c >= 0 && c < cols) {
                         const dc = c - originCol;
                         const dr = r - originRow;
-                        if (dc * dc + dr * dr <= (radiusTiles + 2) * (radiusTiles + 2)) {
+                        if (dc * dc + dr * dr <= perimR2) {
                             this._castBresenhamRay(board, originCol, originRow, c, r);
                         }
                     }

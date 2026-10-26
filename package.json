@@ -6,7 +6,7 @@
   "main": "server/server.mjs",
   "scripts": {
     "start": "node server/server.mjs",
-    "build:exe": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe /target:winexe /out:HeroQuest25D.exe launcher\\Program.cs"
+    "build:exe": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe /target:winexe /r:System.Windows.Forms.dll /out:HeroQuest25D.exe launcher\\Program.cs"
   },
   "engines": {
     "node": ">=22.5.0"

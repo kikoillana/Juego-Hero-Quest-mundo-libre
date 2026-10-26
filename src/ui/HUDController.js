@@ -14,6 +14,7 @@ import { PortraitRenderer } from '../render/PortraitRenderer.js';
 export class HUDController {
     constructor() {
         this.els = {
+            portraitImg: document.getElementById('hud-hero-portrait-img'),
             portraitCanvas: document.getElementById('hud-hero-portrait'),
             heroName: document.getElementById('hud-hero-name'),
             heroTitle: document.getElementById('hud-hero-title'),
@@ -127,9 +128,9 @@ export class HUDController {
             }
         });
 
-        eventBus.on(EVENTS.GAME_STATE_CHANGED, ({ to }) => {
+        eventBus.on(EVENTS.GAME_STATE_CHANGED, ({ state }) => {
             if (this.els.btnPause) {
-                const isPaused = to === 'PAUSED';
+                const isPaused = state === 'PAUSED';
                 this.els.btnPause.textContent = isPaused ? '▶️ Reanudar [P]' : '⏸️ Pausa [P]';
                 this.els.btnPause.classList.toggle('active-toggle', isPaused);
             }
@@ -193,67 +194,98 @@ export class HUDController {
         }
     }
 
+    /**
+     * Escribe textContent solo si cambió (evita invalidar estilo/layout en cada frame).
+     * @param {HTMLElement|null} el
+     * @param {string} value
+     */
+    _setText(el, value) {
+        if (!el || el._hudText === value) return;
+        el._hudText = value;
+        el.textContent = value;
+    }
+
+    /** Escribe style.width solo si cambió. */
+    _setWidth(el, value) {
+        if (!el || el._hudWidth === value) return;
+        el._hudWidth = value;
+        el.style.width = value;
+    }
+
+    /** Alterna una clase solo si su estado cambió. */
+    _setClass(el, cls, on) {
+        if (!el) return;
+        const key = `_hudCls_${cls}`;
+        if (el[key] === on) return;
+        el[key] = on;
+        el.classList.toggle(cls, on);
+    }
+
     updatePlayer(player) {
         if (!player) return;
+        const els = this.els;
 
-        if (this.lastRenderedHeroId !== player.heroId && this.els.portraitCanvas) {
+        if (this.lastRenderedHeroId !== player.heroId) {
             this.lastRenderedHeroId = player.heroId;
-            PortraitRenderer.renderToCanvas(this.els.portraitCanvas, player.heroId);
+            if (els.portraitImg) {
+                // Rehabilitar la imagen por si un fallo de carga previo (onerror en index.html) la ocultó
+                els.portraitImg.style.display = '';
+                if (els.portraitCanvas) els.portraitCanvas.style.display = 'none';
+                els.portraitImg.src = `./assets/heroes/${player.heroId}.jpg`;
+            }
+            if (els.portraitCanvas) {
+                PortraitRenderer.renderToCanvas(els.portraitCanvas, player.heroId);
+            }
         }
 
-        if (this.els.heroName) this.els.heroName.textContent = player.name;
-        if (this.els.heroTitle) this.els.heroTitle.textContent = player.title;
+        this._setText(els.heroName, player.name);
+        this._setText(els.heroTitle, player.title);
 
         const hpPct = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
-        if (this.els.hpFill) this.els.hpFill.style.width = `${hpPct}%`;
-        if (this.els.hpText) this.els.hpText.textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
+        this._setWidth(els.hpFill, `${hpPct.toFixed(1)}%`);
+        this._setText(els.hpText, `${Math.ceil(player.hp)} / ${player.maxHp}`);
 
         const stamPct = Math.max(0, Math.min(100, (player.stamina / player.maxStamina) * 100));
-        if (this.els.staminaFill) this.els.staminaFill.style.width = `${stamPct}%`;
-        if (this.els.staminaText) this.els.staminaText.textContent = `${Math.floor(player.stamina)} / ${player.maxStamina}`;
+        this._setWidth(els.staminaFill, `${stamPct.toFixed(1)}%`);
+        this._setText(els.staminaText, `${Math.floor(player.stamina)} / ${player.maxStamina}`);
 
-        if (this.els.atkValue) this.els.atkValue.textContent = `${player.effectiveDamage}`;
-        if (this.els.defValue) this.els.defValue.textContent = `${player.effectiveDefense}`;
-        if (this.els.goldValue) this.els.goldValue.textContent = `${player.gold}`;
+        this._setText(els.atkValue, `${player.effectiveDamage}`);
+        this._setText(els.defValue, `${player.effectiveDefense}`);
+        this._setText(els.goldValue, `${player.gold}`);
 
-        if (this.els.weaponPill && this.els.weaponValue) {
+        if (els.weaponPill && els.weaponValue) {
             const spec = typeof player.equippedWeapon === 'string'
                 ? SPECIAL_WEAPONS[player.equippedWeapon]
                 : player.equippedWeapon;
-            if (spec && spec.name) {
-                this.els.weaponPill.classList.remove('hidden');
-                this.els.weaponValue.textContent = spec.name;
-            } else {
-                this.els.weaponPill.classList.add('hidden');
-            }
+            const hasWeapon = Boolean(spec && spec.name);
+            this._setClass(els.weaponPill, 'hidden', !hasWeapon);
+            if (hasWeapon) this._setText(els.weaponValue, spec.name);
         }
 
-        if (this.els.slotHealCount) this.els.slotHealCount.textContent = `${player.inventory.healPotions}`;
-        if (this.els.slotStrCount) this.els.slotStrCount.textContent = `${player.inventory.strengthPotions}`;
-        if (this.els.slotSpdCount) this.els.slotSpdCount.textContent = `${player.inventory.speedPotions}`;
+        this._setText(els.slotHealCount, `${player.inventory.healPotions}`);
+        this._setText(els.slotStrCount, `${player.inventory.strengthPotions}`);
+        this._setText(els.slotSpdCount, `${player.inventory.speedPotions}`);
 
-        if (this.els.skillName) this.els.skillName.textContent = player.skillData.name;
-        if (this.els.skillStatus) {
-            if (player.skillCooldownTimer > 0) {
-                this.els.skillStatus.textContent = `${player.skillCooldownTimer.toFixed(1)}s`;
-                this.els.skillStatus.classList.add('on-cooldown');
-            } else {
-                this.els.skillStatus.textContent = 'Lista [Click Der]';
-                this.els.skillStatus.classList.remove('on-cooldown');
-            }
+        this._setText(els.skillName, player.skillData.name);
+        if (els.skillStatus) {
+            const onCd = player.skillCooldownTimer > 0;
+            this._setText(els.skillStatus, onCd ? `${player.skillCooldownTimer.toFixed(1)}s` : 'Lista [Click Der]');
+            this._setClass(els.skillStatus, 'on-cooldown', onCd);
         }
 
-        if (this.els.secondSkillStatus) {
+        if (els.secondSkillStatus) {
+            let text;
+            let onCd = true;
             if (!player.secondSkillUnlocked) {
-                this.els.secondSkillStatus.textContent = '🔒 Misión [J]';
-                this.els.secondSkillStatus.classList.add('on-cooldown');
+                text = '🔒 Misión [J]';
             } else if (player.secondSkillCooldownTimer > 0) {
-                this.els.secondSkillStatus.textContent = `${player.secondSkillCooldownTimer.toFixed(1)}s`;
-                this.els.secondSkillStatus.classList.add('on-cooldown');
+                text = `${player.secondSkillCooldownTimer.toFixed(1)}s`;
             } else {
-                this.els.secondSkillStatus.textContent = '⚡ Lista [Tecla F]';
-                this.els.secondSkillStatus.classList.remove('on-cooldown');
+                text = '⚡ Lista [Tecla F]';
+                onCd = false;
             }
+            this._setText(els.secondSkillStatus, text);
+            this._setClass(els.secondSkillStatus, 'on-cooldown', onCd);
         }
     }
 

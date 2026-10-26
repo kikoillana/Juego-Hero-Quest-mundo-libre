@@ -11,6 +11,19 @@ export function hablarPersonaje() {
     // Lectura TTS desactivada intencionalmente: sustituida por gritos y gruñidos procedurales.
 }
 
+/**
+ * Desconecta los nodos de una voz cuando su fuente termina, para liberar el grafo de audio.
+ * @param {AudioScheduledSourceNode} source
+ * @param {AudioNode[]} nodes
+ */
+function disconnectOnEnd(source, nodes) {
+    source.onended = () => {
+        for (const n of nodes) {
+            try { n.disconnect(); } catch { /* ya desconectado */ }
+        }
+    };
+}
+
 export class VoiceTTS {
     constructor() {
         // Asegurar que cualquier síntesis TTS del navegador quede silenciada
@@ -623,6 +636,7 @@ export class VoiceTTS {
 
             noise.start(startTime);
             noise.stop(startTime + duration + 0.02);
+            disconnectOnEnd(noise, [noise, noiseFilter, nGain]);
         }
 
         env.connect(this.masterGain);
@@ -631,5 +645,6 @@ export class VoiceTTS {
         glottal.start(startTime);
         mod.stop(startTime + duration + 0.02);
         glottal.stop(startTime + duration + 0.02);
+        disconnectOnEnd(glottal, [mod, modGain, glottal, filterF1, filterF2, env]);
     }
 }

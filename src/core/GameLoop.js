@@ -95,7 +95,13 @@ export class GameLoop {
             this.updateFn(dt, this.state, this.elapsedTime);
             this.renderFn(dt, this.state, this.elapsedTime);
         } catch (err) {
-            console.error('[GameLoop] Error en ciclo principal:', err);
+            // Evitar inundar la consola a 60 msg/s si el error se repite cada fotograma
+            const msg = String(err && err.message);
+            if (msg !== this._lastErrorMsg || this.elapsedTime - (this._lastErrorTime || 0) > 2) {
+                console.error('[GameLoop] Error en ciclo principal:', err);
+                this._lastErrorMsg = msg;
+                this._lastErrorTime = this.elapsedTime;
+            }
         }
 
         this.rafId = requestAnimationFrame(this._tick);

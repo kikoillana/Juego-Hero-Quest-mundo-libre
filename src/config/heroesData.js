@@ -8,6 +8,7 @@ export const HEROES_DATA = Object.freeze({
     barbarian: {
         id: 'barbarian',
         name: 'Bárbaro',
+        portrait: './assets/heroes/barbarian.jpg',
         title: 'Campeón de las Tierras Salvajes',
         description: 'Coloso de fuerza descomunal armado con un mandoble de doble filo. Sus barridos diezman filas enteras de pielesverdes.',
         stats: {
@@ -64,6 +65,7 @@ export const HEROES_DATA = Object.freeze({
     dwarf: {
         id: 'dwarf',
         name: 'Enano',
+        portrait: './assets/heroes/dwarf.jpg',
         title: 'Berserker Forjador (Un Poco Loco)',
         description: 'Acorazado en malla rúnica, desquiciado por la pólvora y la cerveza fuerte. Salta de cabeza al peligro y desmonta trampas a martillazos.',
         stats: {
@@ -136,6 +138,7 @@ export const HEROES_DATA = Object.freeze({
     elf: {
         id: 'elf',
         name: 'Elfo',
+        portrait: './assets/heroes/elf.jpg',
         title: 'Hoja de Athel Loren',
         description: 'Guerrero veloz y elegante que flanquea enemigos y canaliza brisas curativas de la naturaleza para sanar al grupo.',
         stats: {
@@ -192,6 +195,7 @@ export const HEROES_DATA = Object.freeze({
     wizard: {
         id: 'wizard',
         name: 'Mago',
+        portrait: './assets/heroes/wizard.jpg',
         title: 'Archimago de los Cuatro Elementos',
         description: 'El más pausado al caminar por el peso de sus tomos, pero letal a distancia con descargas ígneas y novas pirománticas.',
         stats: {

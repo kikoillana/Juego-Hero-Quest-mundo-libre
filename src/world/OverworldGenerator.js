@@ -19,6 +19,7 @@ import {
     ZONE_ID,
     FURNITURE_TYPE
 } from '../config/constants.js';
+import { circleIntersectsRect } from './boardUtils.js';
 
 export class OverworldGenerator {
     /**
@@ -755,6 +756,13 @@ export class OverworldGenerator {
                     }
 
                     const pad = 6;
+                    // Descarte rápido por AABB antes del test círculo-rectángulo
+                    if (
+                        x + radius <= furn.x + pad || x - radius >= furn.x + furn.width - pad ||
+                        y + radius <= furn.y + pad || y - radius >= furn.y + furn.height - pad
+                    ) {
+                        continue;
+                    }
                     if (
                         circleIntersectsRect(
                             x,
@@ -776,12 +784,4 @@ export class OverworldGenerator {
 
         return board;
     }
-}
-
-function circleIntersectsRect(cx, cy, radius, rx, ry, rw, rh) {
-    const closestX = Math.max(rx, Math.min(cx, rx + rw));
-    const closestY = Math.max(ry, Math.min(cy, ry + rh));
-    const dx = cx - closestX;
-    const dy = cy - closestY;
-    return (dx * dx + dy * dy) < (radius * radius);
 }
