@@ -3,273 +3,304 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HeroQuest</title>
-    <link rel="preload" href="./assets/fonts/PressStart2P.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="./assets/fonts/pixelify-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <title>HeroQuest 2.5D — Mundo Libre (Bosque de Loretome &amp; Mazmorras)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Cinzel+Decorative:wght@700;900&family=MedievalSharp&family=Crimson+Pro:ital,wght@0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./styles/main.css" />
 </head>
 <body>
     <div id="app-container">
+        <!-- Lienzo principal 2.5D -->
         <canvas id="game-canvas"></canvas>
 
-        <!-- ===================== HUD ===================== -->
+        <!-- HUD Superpuesto -->
         <header id="hud-overlay">
-            <!-- Izquierda: héroe, energía y atributos -->
+            <!-- Panel Izquierdo: Retrato, Barras de Vida/Stamina y Atributos -->
             <div class="hud-panel hud-hero-card">
                 <div class="hud-portrait-frame">
-                    <img id="hud-hero-portrait-img" src="./assets/portraits/barbarian.png" alt="" class="hud-portrait-img pixelated" onerror="this.style.display='none'; document.getElementById('hud-hero-portrait').style.display='block';" />
-                    <canvas id="hud-hero-portrait" width="64" height="64" class="pixelated" style="display:none;"></canvas>
+                    <img id="hud-hero-portrait-img" src="./assets/heroes/barbarian.jpg" alt="Retrato del Héroe" class="hud-portrait-img" onerror="this.style.display='none'; document.getElementById('hud-hero-portrait').style.display='block';" />
+                    <canvas id="hud-hero-portrait" width="76" height="76" style="display:none;"></canvas>
                 </div>
                 <div class="hud-hero-stats">
                     <div class="hud-hero-header">
                         <span id="hud-hero-name" class="hud-name">Bárbaro</span>
                         <span id="hud-hero-title" class="hud-subtitle">Campeón del Norte</span>
                     </div>
-                    <div class="hud-meter" title="Vida">
-                        <span class="hud-meter-label hud-meter-label-hp">VIDA</span>
+
+                    <div class="hud-bar-group">
+                        <div class="hud-bar-label">
+                            <span>❤️ Cuerpo</span>
+                            <span id="hud-hp-text">110 / 110</span>
+                        </div>
                         <div class="hud-bar-track">
                             <div id="hud-hp-fill" class="hud-bar-fill hp-fill" style="width: 100%;"></div>
                         </div>
-                        <span id="hud-hp-text" class="hud-meter-value hud-meter-value-hp">110/110</span>
                     </div>
-                    <div class="hud-meter" title="Energía (correr, saltar, habilidades)">
-                        <span class="hud-meter-label">ENERGÍA</span>
+
+                    <div class="hud-bar-group">
+                        <div class="hud-bar-label">
+                            <span>⚡ Stamina</span>
+                            <span id="hud-stamina-text">100 / 100</span>
+                        </div>
                         <div class="hud-bar-track">
                             <div id="hud-stamina-fill" class="hud-bar-fill stamina-fill" style="width: 100%;"></div>
                         </div>
-                        <span id="hud-stamina-text" class="hud-meter-value">100</span>
                     </div>
+
                     <div class="hud-attributes-row">
-                        <span class="attr-pill" title="Ataque"><img class="ico" src="./assets/ui/sword.png" alt="" /><strong id="hud-atk-value">28</strong></span>
-                        <span class="attr-pill" title="Defensa"><img class="ico" src="./assets/ui/shield.png" alt="" /><strong id="hud-def-value">2</strong></span>
-                        <span class="attr-pill" title="Héroes en el grupo (4 para el reto final)"><img class="ico" src="./assets/ui/party.png" alt="" /><strong id="hud-party-value">1 / 4</strong></span>
-                        <span id="hud-weapon-pill" class="attr-pill attr-weapon hidden" title="Arma especial"><strong id="hud-weapon-value">Arma</strong></span>
+                        <span class="attr-pill">⚔️ ATQ: <strong id="hud-atk-value">28</strong></span>
+                        <span class="attr-pill">🛡️ DEF: <strong id="hud-def-value">2</strong></span>
+                        <span class="attr-pill" title="Héroes reunidos en el grupo (4/4 requeridos para el Reto Final)">👥 Héroes: <strong id="hud-party-value" style="color:#fef08a;">1 / 4</strong></span>
+                        <span id="hud-weapon-pill" class="attr-pill hidden" style="border-color:#38bdf8; color:#bae6fd;">🗡️ <strong id="hud-weapon-value">Arma</strong></span>
                     </div>
                 </div>
             </div>
 
-            <!-- Centro: objetos y habilidades -->
+            <!-- Panel Central: Cinturón de Pociones (1-3) y Habilidades de Clase -->
             <div class="hud-panel hud-belt-bar">
-                <button id="hud-slot-1" class="belt-slot" title="Poción curativa (tecla 1)">
-                    <img class="ico ico-lg" src="./assets/ui/potion_red.png" alt="" />
+                <button id="hud-slot-1" class="belt-slot" title="Usar Poción Curativa (Tecla 1)">
+                    <span class="slot-key">[1]</span>
+                    <span class="slot-icon">🧪</span>
+                    <span class="slot-label">Curación</span>
                     <span id="slot-heal-count" class="slot-badge">2</span>
-                    <span class="slot-key">1</span>
                 </button>
-                <button id="hud-slot-2" class="belt-slot" title="Poción de fuerza (tecla 2)">
-                    <img class="ico ico-lg" src="./assets/ui/potion_orange.png" alt="" />
+                <button id="hud-slot-2" class="belt-slot" title="Usar Poción de Fuerza (Tecla 2)">
+                    <span class="slot-key">[2]</span>
+                    <span class="slot-icon">🔥</span>
+                    <span class="slot-label">Fuerza</span>
                     <span id="slot-str-count" class="slot-badge">1</span>
-                    <span class="slot-key">2</span>
                 </button>
-                <button id="hud-slot-3" class="belt-slot" title="Poción de viento (tecla 3)">
-                    <img class="ico ico-lg" src="./assets/ui/potion_blue.png" alt="" />
+                <button id="hud-slot-3" class="belt-slot" title="Usar Poción de Velocidad (Tecla 3)">
+                    <span class="slot-key">[3]</span>
+                    <span class="slot-icon">⚡</span>
+                    <span class="slot-label">Viento</span>
                     <span id="slot-spd-count" class="slot-badge">1</span>
-                    <span class="slot-key">3</span>
                 </button>
-                <div class="belt-skill-box" title="Habilidad de clase (clic derecho o Q)">
-                    <span class="slot-key-inline">Q</span>
+                <div class="belt-skill-box" title="Habilidad Especial de Clase (Click Derecho o Q)">
+                    <span class="slot-key">[Click Der / Q]</span>
                     <strong id="hud-skill-name" class="skill-title">Torbellino de Acero</strong>
                     <span id="hud-skill-status" class="skill-ready">Lista</span>
                 </div>
-                <div id="hud-second-skill-box" class="belt-skill-box" title="Segunda habilidad (se desbloquea con una misión, tecla F)">
-                    <span class="slot-key-inline">F</span>
-                    <strong id="hud-second-skill-name" class="skill-title">Tempestad</strong>
-                    <span id="hud-second-skill-status" class="skill-ready on-cooldown">Bloqueada</span>
+                <div id="hud-second-skill-box" class="belt-skill-box" style="border-color:#38bdf8; min-width:138px;" title="2.ª Habilidad desbloqueable en Misión Secundaria (Tecla F)">
+                    <span class="slot-key" style="color:#38bdf8;">[Tecla F]</span>
+                    <strong id="hud-second-skill-name" class="skill-title" style="color:#bae6fd;">Tempestad</strong>
+                    <span id="hud-second-skill-status" class="skill-ready on-cooldown">🔒 Misión</span>
                 </div>
             </div>
 
-            <!-- Derecha: vida, contadores y menú -->
-            <div class="hud-right-col">
-                <div class="hud-panel hud-life-panel">
-                    <div class="hud-life-label">- VIDA -</div>
-                    <div id="hud-hearts" class="hud-hearts" aria-hidden="true"></div>
-                </div>
-                <div class="hud-panel hud-quest-panel">
-                    <div class="quest-counters">
-                        <div class="counter-item" title="Oro">
-                            <img class="ico" src="./assets/ui/coin.png" alt="" />
-                            <strong id="hud-gold-value" class="gold-text">50</strong>
-                        </div>
-                        <div class="counter-item" title="Salas descubiertas">
-                            <img class="ico" src="./assets/ui/door.png" alt="" />
-                            <span id="hud-rooms-label" class="sr-only">Salas</span>
-                            <strong id="hud-rooms-value">1 / 7</strong>
-                        </div>
-                        <div class="counter-item counter-boss" title="Jefe">
-                            <img class="ico" src="./assets/ui/skull.png" alt="" />
-                            <span id="hud-boss-label" class="sr-only">Jefe</span>
-                            <strong id="hud-boss-value" class="boss-status">Vivo</strong>
-                        </div>
+            <!-- Panel Derecho: Zona Activa, Contadores de Gesta y Controles de Mundo Libre -->
+            <div class="hud-panel hud-quest-panel">
+                <div class="quest-counters">
+                    <div class="counter-item">
+                        <span class="counter-label">🗺️ Zona Actual</span>
+                        <strong id="hud-zone-value" style="color:#86efac;">🏰 Bastión de Fellmarg</strong>
                     </div>
-                    <div class="hud-zone-row">
-                        <img class="ico" src="./assets/ui/map.png" alt="" />
-                        <strong id="hud-zone-value">Bastión de Fellmarg</strong>
+                    <div class="counter-item">
+                        <span class="counter-label">🪙 Tesoro</span>
+                        <strong id="hud-gold-value" class="gold-text">50</strong>
+                    </div>
+                    <div class="counter-item">
+                        <span id="hud-rooms-label" class="counter-label">🚪 Salas</span>
+                        <strong id="hud-rooms-value">1 / 7</strong>
+                    </div>
+                    <div class="counter-item">
+                        <span id="hud-boss-label" class="counter-label">👹 Jefe</span>
+                        <strong id="hud-boss-value" class="boss-status">En el Santuario</strong>
                     </div>
                 </div>
-                <nav class="hud-action-buttons" aria-label="Menú">
-                    <button id="btn-hud-forest" class="hq-btn hq-btn-icon" title="Salir al bosque"><img class="ico" src="./assets/ui/tree.png" alt="" /></button>
-                    <button id="btn-hud-quests" class="hq-btn hq-btn-icon" title="Misiones (J)"><img class="ico" src="./assets/ui/scroll.png" alt="" /><span class="k">J</span></button>
-                    <button id="btn-hud-save" class="hq-btn hq-btn-icon" title="Partidas (G)"><img class="ico" src="./assets/ui/feather.png" alt="" /><span class="k">G</span></button>
-                    <button id="btn-hud-shop" class="hq-btn hq-btn-icon" title="Armería (B)"><img class="ico" src="./assets/ui/anvil.png" alt="" /><span class="k">B</span></button>
-                    <button id="btn-hud-lore" class="hq-btn hq-btn-icon" title="Historia (L)"><img class="ico" src="./assets/ui/book.png" alt="" /><span class="k">L</span></button>
-                    <button id="btn-hud-music" class="hq-btn hq-btn-icon" title="Música (M)"><img class="ico" src="./assets/ui/note.png" alt="" /><span class="k">M</span></button>
-                    <button id="btn-hud-voice" class="hq-btn hq-btn-icon active-toggle" title="Voces (V)"><img class="ico" src="./assets/ui/speaker_on.png" alt="" /><span class="k">V</span></button>
-                    <button id="btn-hud-pause" class="hq-btn hq-btn-icon" title="Pausa (P)"><img class="ico" src="./assets/ui/pause.png" alt="" /><span class="k">P</span></button>
-                </nav>
+                <div class="hud-action-buttons">
+                    <button id="btn-hud-forest" class="hq-btn hq-btn-sm active-toggle" title="Subir Escalera hacia el Bosque Exterior o ir al Campamento">🌲 Salir al Bosque</button>
+                    <button id="btn-hud-quests" class="hq-btn hq-btn-sm" style="border-color:#38bdf8; color:#bae6fd;" title="Diario de Misiones Secundarias y Rescate de los 4 Héroes (Tecla J)">📜 Misiones [J]</button>
+                    <button id="btn-hud-pause" class="hq-btn hq-btn-sm">⏸️ Pausa [P]</button>
+                    <button id="btn-hud-save" class="hq-btn hq-btn-sm">💾 Partidas [G]</button>
+                    <button id="btn-hud-shop" class="hq-btn hq-btn-sm">🏰 Armería [B]</button>
+                    <button id="btn-hud-lore" class="hq-btn hq-btn-sm">📜 Lore [L]</button>
+                    <button id="btn-hud-music" class="hq-btn hq-btn-sm">🔇 Música: OFF [M]</button>
+                    <button id="btn-hud-voice" class="hq-btn hq-btn-sm active-toggle">🗣️ Gritos: ON [V]</button>
+                </div>
             </div>
         </header>
 
-        <!-- Controles -->
+        <!-- Leyenda rápida de controles en esquina inferior izquierda -->
         <aside id="controls-hint">
-            <span><b>WASD</b> Mover</span>
-            <span><b>CLIC</b> Atacar</span>
-            <span><b>Q</b> Habilidad</span>
-            <span><b>F</b> Hab. 2</span>
-            <span><b>SHIFT</b> Escudo</span>
-            <span><b>ESPACIO</b> Saltar</span>
-            <span><b>E</b> Acción</span>
-            <span><b>J</b> Misiones</span>
-            <span><b>ESC</b> Pausa</span>
+            <span><strong>WASD</strong> Mover</span>
+            <span><strong>Espacio</strong> Saltar (Z)</span>
+            <span><strong>Shift</strong> Bloquear Escudo</span>
+            <span><strong>Click Izq</strong> Tajo / Cortar</span>
+            <span><strong>Click Der / Q</strong> Habilidad</span>
+            <span><strong>[F]</strong> 2.ª Hab.</span>
+            <span><strong>[E / 0]</strong> Interactuar / Rescatar</span>
+            <span><strong>[J]</strong> Misiones y Héroes</span>
+            <span><strong>[P / Esc]</strong> Pausa</span>
+            <span><strong>[G]</strong> Partidas</span>
         </aside>
 
-        <!-- Caja de diálogo -->
-        <section id="dialog-banner" class="dialog-box hidden" aria-live="polite">
+        <!-- Caja de Diálogo RPG Inferior (Mentor / Inspecciones) -->
+        <section id="dialog-banner" class="parchment-box hidden" aria-live="polite">
             <div class="dialog-portrait-wrap">
-                <canvas id="dialog-portrait-canvas" class="pixelated" width="64" height="64"></canvas>
+                <canvas id="dialog-portrait-canvas" width="84" height="84"></canvas>
             </div>
             <div class="dialog-content">
                 <div class="dialog-header-row">
-                    <span id="dialog-speaker-name" class="dialog-speaker">Mentor</span>
-                    <span id="dialog-title" class="dialog-quest-tag"></span>
+                    <span id="dialog-speaker-name" class="dialog-speaker">Mentor — Guardián de Loretome</span>
+                    <span id="dialog-title" class="dialog-quest-tag">Crónicas del Bosque de Loretome</span>
                 </div>
                 <p id="dialog-text" class="dialog-body-text"></p>
             </div>
-            <button id="dialog-close-btn" class="dialog-next" title="Continuar"><img class="ico" src="./assets/ui/arrow_down.png" alt="Continuar" /></button>
+            <button id="dialog-close-btn" class="hq-btn hq-btn-sm">Continuar ▸</button>
         </section>
 
-        <!-- MODAL: Selección de héroe -->
+        <!-- MODAL 1: Selección de Clase de Héroe -->
         <div id="hero-modal" class="modal-backdrop">
-            <div class="modal-window title-screen">
-                <h1 class="game-logo">HEROQUEST</h1>
-                <p class="title-sub">Elige a tu héroe</p>
-                <div id="hero-selection-grid" class="hero-cards-grid"></div>
-                <div class="title-footer">
-                    <button id="btn-hero-open-saves" class="hq-btn"><img class="ico" src="./assets/ui/feather.png" alt="" /> Cargar partida</button>
+            <div class="modal-window gothic-modal">
+                <div class="modal-ornament-top"></div>
+                <h1 class="gothic-title">HEROQUEST 2.5D — MUNDO LIBRE (MAPA 4X)</h1>
+                <p class="gothic-subtitle">Comienza la gesta en solitario con tu Héroe elegido, rescata uno a uno a tus 3 compañeros cautivos, completa Misiones Secundarias y desbloquea el Reto Final (4/4 Héroes)</p>
+                <div style="display:flex; justify-content:center; margin-bottom:18px;">
+                    <button id="btn-hero-open-saves" class="hq-btn">📂 Cargar Partida Guardada / Salón de la Fama (BBDD SQLite)</button>
                 </div>
+                <div id="hero-selection-grid" class="hero-cards-grid"></div>
             </div>
         </div>
 
-        <!-- MODAL: Historia -->
+        <!-- MODAL 2: Pergamino de Lore de Mentor -->
         <div id="lore-modal" class="modal-backdrop hidden">
-            <div class="modal-window lore-window">
+            <div class="modal-window parchment-modal">
                 <div class="lore-header">
-                    <canvas id="lore-mentor-canvas" width="64" height="64" class="lore-portrait pixelated"></canvas>
+                    <canvas id="lore-mentor-canvas" width="92" height="92" class="lore-portrait"></canvas>
                     <div>
-                        <span class="lore-kicker" id="lore-quest-subtitle"></span>
-                        <h2 id="lore-quest-title" class="panel-title">El bosque de Loretome</h2>
+                        <span class="lore-kicker" id="lore-quest-subtitle">HeroQuest 2.5D — Edición Mundo Abierto 4x, Rescate &amp; Misiones</span>
+                        <h2 id="lore-quest-title" class="lore-title">Crónicas del Bosque de Loretome — La Emboscada de Zargon</h2>
                     </div>
                 </div>
                 <div id="lore-paragraphs" class="lore-body"></div>
-                <div id="lore-prisoners-summary" class="info-box info-box-red"></div>
-                <div class="info-box">
-                    <h4>Cómo jugar</h4>
+                <div id="lore-prisoners-summary" class="lore-controls-box" style="background:rgba(153, 27, 27, 0.12); border-color:#991b1b;"></div>
+                <div class="lore-controls-box">
+                    <h4>Guía de Rescate, Misiones Secundarias y el Reto Final</h4>
                     <ul>
-                        <li>Empiezas solo. Tus tres compañeros están encerrados en jaulas en el <b>Bastión de Fellmarg</b> (oeste), la <b>Cripta del Rey Brujo</b> (norte) y la <b>Forja de Kellar</b> (este). Acércate y pulsa <b>E</b> para liberarlos.</li>
-                        <li>El <b>Santuario de Zargon</b> (suroeste) solo se abre con los cuatro héroes.</li>
-                        <li>Habla con la gente del bosque (<b>J</b>) para conseguir armas, habilidades y oro.</li>
+                        <li><strong>Comienzas Solo (1/4 Héroes):</strong> Tus otros 3 compañeros están cautivos en <strong>Jaulas Rúnicas</strong> dentro del <strong>Bastión de Fellmarg (Oeste)</strong>, la <strong>Cripta del Rey Brujo (Norte)</strong> y la <strong>Forja de Kellar (Este)</strong>. Acércate a cada jaula y pulsa <strong>[E]</strong> (o derrota al jefe de la mazmorra) para liberarlos y sumarlos a tu grupo.</li>
+                        <li><strong>Reto Final Sellado (4/4 Héroes):</strong> El <strong>Santuario Final de Zargon (Suroeste)</strong> está protegido por el <em>Sello de los Cuatro Campeones</em>: solo se abrirá cuando hayas rescatado a todos los héroes.</li>
+                        <li><strong>6 Misiones Secundarias en el Mapa 4x [J]:</strong> Habla con los 6 NPCs del Bosque (o pulsa <strong>[J]</strong>) para obtener <strong>Nuevas Armas Legendarias</strong> (<em>Hoja Astral</em>, <em>Alabarda Matadragones</em>), <strong>Nuevas Habilidades</strong> (<em>[Tecla F] Tempestad de Loretome</em>, <em>Sangre Silvana</em>, <em>Égida Imperial</em>) y <strong>grandes bolsas de Oro</strong>.</li>
                     </ul>
                 </div>
                 <div class="modal-footer-actions">
-                    <button id="btn-lore-start-forest" class="hq-btn hq-btn-green"><img class="ico" src="./assets/ui/tree.png" alt="" /> Empezar en el bosque</button>
-                    <button id="btn-lore-close" class="hq-btn hq-btn-primary"><img class="ico" src="./assets/ui/sword.png" alt="" /> Empezar en Fellmarg</button>
+                    <button id="btn-lore-start-forest" class="hq-btn" style="background:linear-gradient(180deg, #15803d 0%, #14532d 100%); border-color:#4ade80;">🌲 Empezar en el Bosque Real (Mapa 4x)</button>
+                    <button id="btn-lore-close" class="hq-btn hq-btn-primary">⚔️ Empezar en el Bastión de Fellmarg (1.er Rescate)</button>
                 </div>
             </div>
         </div>
 
-        <!-- MODAL: Armería -->
+        <!-- MODAL 3: Armería del Imperio (Tienda) -->
         <div id="shop-modal" class="modal-backdrop hidden">
-            <div class="modal-window">
-                <div class="panel-header">
-                    <h2 class="panel-title"><img class="ico ico-lg" src="./assets/ui/anvil.png" alt="" /> ARMERÍA</h2>
-                    <div class="gold-pill"><img class="ico" src="./assets/ui/coin.png" alt="" /><strong id="shop-gold-display">50</strong></div>
+            <div class="modal-window gothic-modal">
+                <div class="shop-header-bar">
+                    <div>
+                        <h2 class="gothic-title-sm">🏰 Armería y Forja Real</h2>
+                        <p class="shop-subtitle">Forja rúnica, elixires alquímicos y suministros para el Bosque y las Mazmorras</p>
+                    </div>
+                    <div class="shop-gold-pill">
+                        <span>Tesoro Disponible:</span>
+                        <strong id="shop-gold-display">50 monedas de oro</strong>
+                    </div>
                 </div>
-                <p id="shop-feedback-msg" class="panel-feedback">¿Qué necesitas, viajero?</p>
-                <div id="shop-items-grid" class="card-grid"></div>
+                <p id="shop-feedback-msg" class="shop-feedback">Selecciona una mejora o suministro para tu gesta.</p>
+                <div id="shop-items-grid" class="shop-grid"></div>
                 <div class="modal-footer-actions">
-                    <button id="shop-close-btn" class="hq-btn hq-btn-primary">Salir <span class="k">B</span></button>
+                    <button id="shop-close-btn" class="hq-btn hq-btn-primary">Volver a la Aventura [B]</button>
                 </div>
             </div>
         </div>
 
-        <!-- MODAL: Victoria / derrota -->
+        <!-- MODAL 4: Victoria / Derrota -->
         <div id="endgame-modal" class="modal-backdrop hidden">
-            <div class="modal-window endgame-window">
-                <canvas id="endgame-portrait-canvas" width="64" height="64" class="endgame-portrait pixelated"></canvas>
-                <h2 id="endgame-title" class="panel-title panel-title-big">¡MAZMORRA SUPERADA!</h2>
+            <div class="modal-window gothic-modal endgame-window">
+                <canvas id="endgame-portrait-canvas" width="96" height="96" class="endgame-portrait"></canvas>
+                <h2 id="endgame-title" class="gothic-title">¡MAZMORRA CONQUISTADA!</h2>
                 <p id="endgame-message" class="endgame-lore-text"></p>
-                <div id="endgame-stats" class="stats-list"></div>
+                <div id="endgame-stats" class="endgame-stats-grid"></div>
                 <div class="modal-footer-actions">
-                    <button id="btn-endgame-continue-forest" class="hq-btn hq-btn-green"><img class="ico" src="./assets/ui/tree.png" alt="" /> Volver al bosque</button>
-                    <button id="btn-restart-game" class="hq-btn hq-btn-primary">Nueva partida</button>
+                    <button id="btn-endgame-continue-forest" class="hq-btn" style="background:linear-gradient(180deg, #15803d 0%, #14532d 100%); border-color:#4ade80;">🌲 Salir al Bosque y Seguir Explorando</button>
+                    <button id="btn-restart-game" class="hq-btn hq-btn-primary">🔄 Emprender Nueva Partida</button>
                 </div>
             </div>
         </div>
 
-        <!-- MODAL: Pausa -->
+        <!-- MODAL 5: Pausa Táctica -->
         <div id="pause-modal" class="modal-backdrop hidden">
-            <div class="modal-window pause-window">
-                <h2 class="panel-title panel-title-big">PAUSA</h2>
-                <div id="pause-party-summary" class="stats-list"></div>
-                <div class="menu-list">
-                    <button id="btn-pause-resume" class="hq-btn hq-btn-primary"><img class="ico" src="./assets/ui/play.png" alt="" /> Continuar</button>
-                    <button id="btn-pause-quests" class="hq-btn"><img class="ico" src="./assets/ui/scroll.png" alt="" /> Misiones <span class="k">J</span></button>
-                    <button id="btn-pause-forest" class="hq-btn"><img class="ico" src="./assets/ui/tree.png" alt="" /> Ir al bosque</button>
-                    <button id="btn-pause-saves" class="hq-btn"><img class="ico" src="./assets/ui/feather.png" alt="" /> Guardar / cargar <span class="k">G</span></button>
-                    <button id="btn-pause-shop" class="hq-btn"><img class="ico" src="./assets/ui/anvil.png" alt="" /> Armería <span class="k">B</span></button>
-                    <button id="btn-pause-lore" class="hq-btn"><img class="ico" src="./assets/ui/book.png" alt="" /> Historia <span class="k">L</span></button>
-                    <button id="btn-pause-restart" class="hq-btn hq-btn-danger">Cambiar de héroe</button>
+            <div class="modal-window gothic-modal endgame-window">
+                <div class="modal-ornament-top"></div>
+                <h2 class="gothic-title">⏸️ JUEGO EN PAUSA</h2>
+                <p class="gothic-subtitle">El Bosque de Loretome (4x) y sus mazmorras aguardan tus órdenes.</p>
+                <div id="pause-party-summary" class="endgame-stats-grid" style="margin-bottom: 18px;"></div>
+                <div style="display:flex; flex-direction:column; gap:10px; max-width:380px; margin:0 auto;">
+                    <button id="btn-pause-resume" class="hq-btn hq-btn-primary">▶️ Reanudar Partida [P / Esc]</button>
+                    <button id="btn-pause-quests" class="hq-btn" style="border-color:#38bdf8; color:#bae6fd;">📜 Diario de Misiones y Rescate de Héroes [J]</button>
+                    <button id="btn-pause-forest" class="hq-btn" style="background:linear-gradient(180deg, #15803d 0%, #14532d 100%); border-color:#4ade80;">🌲 Salir al Bosque / Ir a la Hoguera Central</button>
+                    <button id="btn-pause-saves" class="hq-btn">💾 Guardar / Cargar Partidas (Ranuras 1-3) [G]</button>
+                    <button id="btn-pause-shop" class="hq-btn">🏰 Abrir Armería del Imperio [B]</button>
+                    <button id="btn-pause-lore" class="hq-btn">📜 Leer Crónicas y Lore Inicial [L]</button>
+                    <button id="btn-pause-restart" class="hq-btn" style="border-color:#ef4444; color:#fca5a5;">🔄 Cambiar de Héroe / Nueva Partida</button>
                 </div>
             </div>
         </div>
 
-        <!-- MODAL: Partidas -->
+        <!-- MODAL 6: Gestor de Partidas Guardadas y Salón de la Fama (BBDD SQLite) -->
         <div id="save-modal" class="modal-backdrop hidden">
-            <div class="modal-window">
-                <div class="panel-header">
-                    <h2 class="panel-title"><img class="ico ico-lg" src="./assets/ui/feather.png" alt="" /> PARTIDAS</h2>
-                    <span id="save-backend-badge" class="panel-badge">SQLite</span>
+            <div class="modal-window gothic-modal">
+                <div class="shop-header-bar">
+                    <div>
+                        <h2 class="gothic-title-sm">💾 Gestión de Partidas — Mundo Libre &amp; Mazmorras</h2>
+                        <p class="shop-subtitle">Elige en qué ranura (1, 2 o 3) guardar tu progreso actual (incluyendo Héroes Rescatados, Misiones y Mapa 4x)</p>
+                    </div>
+                    <div class="shop-gold-pill">
+                        <strong id="save-backend-badge">Motor BBDD: SQLite (data/heroquest.db)</strong>
+                    </div>
                 </div>
-                <div class="save-name-bar">
-                    <label for="save-custom-name">Nombre:</label>
-                    <input id="save-custom-name" type="text" maxlength="45" placeholder="Partida sin nombre" />
-                    <span class="save-hint"><span class="k">F5</span> guardar <span class="k">F9</span> cargar</span>
+                <div class="save-name-bar" style="display:flex; gap:10px; align-items:center; margin-bottom:12px; background:rgba(15,12,22,0.75); padding:10px 14px; border:1px solid #4a3b2c; border-radius:6px;">
+                    <label for="save-custom-name" style="color:#fde68a; font-weight:700; font-size:0.88rem; white-space:nowrap;">📝 Nombre al guardar:</label>
+                    <input id="save-custom-name" type="text" maxlength="45" placeholder="Ej: 3/4 Héroes rescatados rumbo a Kellar..." style="flex:1; background:#120f17; color:#f8fafc; border:1px solid #785c38; border-radius:4px; padding:6px 10px; font-family:inherit; font-size:0.9rem;" />
+                    <span style="color:#94a3b8; font-size:0.78rem;">Atajos: <strong>[F5]</strong> Guardar Ranura 1 | <strong>[F9]</strong> Cargar</span>
                 </div>
-                <p id="save-feedback-msg" class="panel-feedback">Elige una ranura.</p>
-                <div id="save-slots-grid" class="card-grid"></div>
+                <p id="save-feedback-msg" class="shop-feedback">Pulsa «💾 Guardar Aquí» en la Ranura 1, 2 o 3 para guardar tu partida actual, o «📂 Cargar Partida» para restaurarla.</p>
+                <div id="save-slots-grid" class="shop-grid"></div>
+
                 <div class="hof-section">
-                    <h3 class="panel-subtitle"><img class="ico" src="./assets/ui/trophy.png" alt="" /> SALÓN DE LA FAMA</h3>
+                    <h3 class="gothic-title-sm" style="font-size:1.1rem; margin:16px 0 8px;">🏆 Salón de la Fama (Historial en BBDD)</h3>
                     <div id="save-hof-list" class="hof-list"></div>
                 </div>
+
                 <div class="modal-footer-actions">
-                    <button id="save-close-btn" class="hq-btn hq-btn-primary">Volver <span class="k">ESC</span></button>
+                    <button id="save-close-btn" class="hq-btn hq-btn-primary">Volver al Juego [G / Esc]</button>
                 </div>
             </div>
         </div>
 
-        <!-- MODAL: Misiones -->
+        <!-- MODAL 7: Diario Real de Misiones Secundarias y Estado de Rescate de los 4 Héroes -->
         <div id="quests-modal" class="modal-backdrop hidden">
-            <div class="modal-window">
-                <div class="panel-header">
-                    <h2 class="panel-title"><img class="ico ico-lg" src="./assets/ui/scroll.png" alt="" /> MISIONES</h2>
-                    <div class="gold-pill"><img class="ico" src="./assets/ui/party.png" alt="" /><strong id="quests-party-pill">1 / 4</strong></div>
+            <div class="modal-window gothic-modal">
+                <div class="shop-header-bar">
+                    <div>
+                        <h2 class="gothic-title-sm">📜 Crónicas de Rescate y Misiones Secundarias</h2>
+                        <p class="shop-subtitle">Rescata a tus 3 compañeros cautivos uno a uno para abrir el Reto Final y completa encargos por Armas, Habilidades y Oro</p>
+                    </div>
+                    <div class="shop-gold-pill" style="border-color:#38bdf8;">
+                        <span>Grupo Reunido:</span>
+                        <strong id="quests-party-pill" style="color:#38bdf8;">1 / 4 Héroes</strong>
+                    </div>
                 </div>
-                <p id="quests-feedback-msg" class="panel-feedback">Libera a tus compañeros y ayuda a la gente del bosque.</p>
-                <h3 class="panel-subtitle">HÉROES</h3>
-                <div id="quests-heroes-grid" class="card-grid card-grid-heroes"></div>
-                <h3 class="panel-subtitle">ENCARGOS</h3>
-                <div id="quests-list-grid" class="card-grid"></div>
+
+                <p id="quests-feedback-msg" class="shop-feedback">Consulta el paradero de tus compañeros cautivos o acepta y reclama recompensas de las 6 Misiones Secundarias.</p>
+
+                <h3 class="gothic-title-sm" style="font-size:1.05rem; margin:8px 0 10px; color:#fef08a;">🛡️ Estado de los 4 Campeones de Loretome (Requeridos 4/4 para el Reto Final)</h3>
+                <div id="quests-heroes-grid" class="shop-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom:18px;"></div>
+
+                <h3 class="gothic-title-sm" style="font-size:1.05rem; margin:10px 0 10px; color:#bae6fd;">⚔️ Misiones Secundarias del Bosque de Loretome (Armas, Habilidades y Oro)</h3>
+                <div id="quests-list-grid" class="shop-grid"></div>
+
                 <div class="modal-footer-actions">
-                    <button id="quests-camp-btn" class="hq-btn hq-btn-green"><img class="ico" src="./assets/ui/fire.png" alt="" /> Viajar al campamento</button>
-                    <button id="quests-close-btn" class="hq-btn hq-btn-primary">Volver <span class="k">J</span></button>
+                    <button id="quests-camp-btn" class="hq-btn" style="background:linear-gradient(180deg, #15803d 0%, #14532d 100%); border-color:#4ade80;">🏕️ Viaje Rápido al Campamento Real</button>
+                    <button id="quests-close-btn" class="hq-btn hq-btn-primary">Volver a la Aventura [J / Esc]</button>
                 </div>
             </div>
         </div>
