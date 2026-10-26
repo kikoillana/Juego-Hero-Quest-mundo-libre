@@ -11,21 +11,21 @@ export const MENTOR_VOICE = Object.freeze({
 });
 
 export const MENTOR_LORE = Object.freeze({
-    questTitle: 'Crónicas de Loretome: El Rescate de los Cuatro Héroes',
-    questSubtitle: 'HeroQuest 2.5D — Mundo Libre 4x, Misiones Secundarias & Reto Final',
+    questTitle: 'El rescate de los cuatro héroes',
+    questSubtitle: 'Historia',
     introParagraphs: [
-        '¡Escucha mi voz, Campeón! Durante la marcha hacia el corazón del Bosque Real de Loretome, una emboscada de las legiones de Zargon dividió a vuestra compañía. Tus tres compañeros de armas han sido capturados y encerrados en Jaulas Rúnicas dentro de tres fortalezas oscuras.',
-        'Comienzas tu gesta EN SOLITARIO (1/4 Héroes). Deberás recorrer el Gran Bosque (ahora 4 veces más extenso, 104x76 celdas) y adentrarte en el Bastión de Fellmarg (Oeste), la Cripta del Rey Brujo (Norte) y la Forja de Kellar (Este) para rescatar uno a uno a tus tres hermanos de batalla.',
-        'En el Campamento Real y por los caminos del bosque encontrarás Maestros Herreros, Archimagos y Exploradores con MISIONES SECUNDARIAS [J / E] que te recompensarán con Nuevas Armas Legendarias, Nuevas Habilidades Activas [Tecla F] y Pasivas, y cofres de Oro.',
-        'Solo cuando hayas rescatado a todos tus compañeros y los 4 HÉROES estén reunidos (4/4), se romperá el Sello Ancestral del Santuario Final de Zargon (en la Ciénaga Suroeste), donde os aguarda el Reto Final definitivo.'
+        'Escucha, héroe. De camino al corazón del bosque de Loretome, las tropas de Zargon os tendieron una emboscada. Tus tres compañeros fueron capturados y encerrados en jaulas, cada uno en una fortaleza distinta.',
+        'Estás solo. Recorre el bosque y entra en el Bastión de Fellmarg (oeste), la Cripta del Rey Brujo (norte) y la Forja de Kellar (este) para liberarlos.',
+        'Por los caminos encontrarás herreros, magos y exploradores que te pedirán ayuda. A cambio te darán armas, habilidades y oro.',
+        'Cuando los cuatro estéis juntos, se abrirá el santuario de Zargon, en la ciénaga del suroeste. Allí os espera la batalla final.'
     ],
-    welcomeBanner: 'Comienzas en solitario (1/4 Héroes). Sal al Gran Bosque [E] para cumplir Misiones Secundarias [J] y rescatar uno a uno a tus 3 compañeros cautivos antes del Reto Final.',
+    welcomeBanner: 'Estás solo. Sal al bosque con [E], habla con la gente [J] y libera a tus tres compañeros.',
     zones: {
-        overworld: '¡Te encuentras en el Gran Bosque Real de Loretome (Mapa 4x)! Habla con los NPCs del Campamento Central [E] o abre el Diario de Misiones [J] para ganar nuevas armas, habilidades y oro mientras rescatas a tus 3 compañeros.',
+        overworld: 'El bosque de Loretome. En el campamento central hay gente que necesita ayuda. Pulsa [J] para ver tus misiones.',
         dungeon_fellmarg: 'Bastión de Fellmarg (Mazmorra I — Oeste). En el Santuario final de esta fortaleza se halla encerrado tu primer compañero en una Jaula Rúnica. ¡Llega hasta el Santuario y libéralo con [E]!',
         dungeon_crypt: 'Cripta del Rey Brujo (Mazmorra II — Norte). Tras los sarcófagos y legiones óseas se encuentra la celda rúnica de tu segundo compañero capturado.',
         dungeon_kellar: 'Forja Subterránea de Kellar (Mazmorra III — Este). Entre los ríos de escoria y guardias orcos yace cautivo tu tercer compañero de armas.',
-        dungeon_swamp: '¡EL RETO FINAL: Santuario Supremo de Zargon (Mazmorra IV — Suroeste)! Los 4 Héroes habéis roto el sello ancestral. ¡Derrotad juntos al Soberano Supremo del Caos!'
+        dungeon_swamp: 'El santuario de Zargon. Los cuatro estáis juntos: es hora de acabar con esto.'
     },
     rooms: {
         entrance: 'Estás junto a la Escalera Imperial. Pulsa [E] sobre los escalones para salir al Bosque Exterior en cualquier momento, o abre las puertas para buscar a tu compañero cautivo.',

@@ -74,63 +74,31 @@ export class BubbleManager {
         if (this.bubbles.length === 0) return;
 
         ctx.save();
-        ctx.font = 'bold 12px "Segoe UI", system-ui, sans-serif';
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+        ctx.font = '16px "Pixelify Sans", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
         for (const b of this.bubbles) {
             const screenPos = camera.worldToScreen(b.lastX, b.lastY, b.lastZ + 44);
-            const alpha = Math.min(1, (b.life / b.maxLife) * 2.5);
+            // Aparece/desaparece en escalones (sin fundidos suaves, estilo 16 bits)
+            const age = b.maxLife - b.life;
+            if (age < 0.05 || (b.life < 0.4 && Math.floor(b.life * 12) % 2 === 0)) continue;
 
-            const popScale = b.maxLife - b.life < 0.1
-                ? 0.8 + ((b.maxLife - b.life) / 0.1) * 0.2
-                : 1.0;
-
-            const padX = 11;
-            const textWidth = ctx.measureText(b.text).width;
-            const boxW = Math.min(270, textWidth + padX * 2);
+            const theme = BUBBLE_THEMES[b.style] || BUBBLE_THEMES.monster;
+            const text = b.text;
+            const textWidth = Math.ceil(ctx.measureText(text).width);
+            const boxW = Math.min(320, textWidth + 20) & ~1;
             const boxH = 26;
+            const tipX = Math.round(screenPos.x);
+            const bx = Math.round(screenPos.x - boxW / 2);
+            const by = Math.round(screenPos.y - boxH - 12);
 
-            const bx = screenPos.x - boxW * 0.5;
-            const by = screenPos.y - boxH - 8;
+            drawPixelBalloon(ctx, bx, by, boxW, boxH, tipX, theme);
 
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            ctx.translate(screenPos.x, screenPos.y);
-            ctx.scale(popScale, popScale);
-            ctx.translate(-screenPos.x, -screenPos.y);
-
-            let bgColor = '#fef9c3';
-            let borderColor = '#1c1917';
-            let textColor = '#1c1917';
-
-            if (b.style === 'boss') {
-                bgColor = '#450a0a';
-                borderColor = '#facc15';
-                textColor = '#fef08a';
-            } else if (b.style === 'skill') {
-                bgColor = '#1e3a8a';
-                borderColor = '#38bdf8';
-                textColor = '#f8fafc';
-            } else if (b.style === 'hero') {
-                bgColor = '#fffbeb';
-                borderColor = '#b45309';
-                textColor = '#451a03';
-            }
-
-            // Globo redondeado con pico inferior estilo cómic
-            ctx.fillStyle = bgColor;
-            ctx.strokeStyle = borderColor;
-            ctx.lineWidth = 2;
-
-            drawRoundedBalloon(ctx, bx, by, boxW, boxH, 7, screenPos.x, screenPos.y - 1);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = textColor;
-            ctx.fillText(b.text, screenPos.x, by + boxH * 0.5, boxW - 12);
-
-            ctx.restore();
+            ctx.fillStyle = theme.text;
+            ctx.fillText(text, tipX, by + boxH / 2 + 1, boxW - 12);
         }
 
         ctx.restore();
@@ -141,22 +109,36 @@ export class BubbleManager {
     }
 }
 
-function drawRoundedBalloon(ctx, x, y, w, h, r, tailX, tailY) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+/** Paletas de los bocadillos (colores de la paleta maestra de 16 bits). */
+const BUBBLE_THEMES = {
+    monster: { bg: '#f8f8f8', border: '#201818', text: '#201818' },
+    hero: { bg: '#f8f0d0', border: '#583010', text: '#201818' },
+    boss: { bg: '#901818', border: '#f8c830', text: '#f8f8f8' },
+    skill: { bg: '#283898', border: '#f8f8f8', text: '#f8f8f8' }
+};
 
-    // Pico del bocadillo apuntando a la miniatura
-    ctx.lineTo(tailX + 6, y + h);
-    ctx.lineTo(tailX, tailY);
-    ctx.lineTo(tailX - 6, y + h);
-
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
+/**
+ * Bocadillo pixel-art: caja rectangular con esquinas recortadas, borde de 2 px y pico escalonado.
+ */
+function drawPixelBalloon(ctx, x, y, w, h, tipX, theme) {
+    const B = 2; // grosor del borde
+    // Borde (caja con esquinas recortadas de 2 px)
+    ctx.fillStyle = theme.border;
+    ctx.fillRect(x + B, y, w - B * 2, h);
+    ctx.fillRect(x, y + B, w, h - B * 2);
+    // Relleno
+    ctx.fillStyle = theme.bg;
+    ctx.fillRect(x + B, y + B, w - B * 2, h - B * 2);
+    // Pico escalonado hacia el personaje
+    const tx = Math.max(x + 8, Math.min(x + w - 8, tipX));
+    const steps = [6, 4, 2];
+    for (let i = 0; i < steps.length; i++) {
+        const half = steps[i];
+        ctx.fillStyle = theme.border;
+        ctx.fillRect(tx - half - B, y + h - B + i * B, (half + B) * 2, B);
+        ctx.fillStyle = theme.bg;
+        ctx.fillRect(tx - half, y + h - B + i * B, half * 2, B);
+    }
+    ctx.fillStyle = theme.border;
+    ctx.fillRect(tx - B, y + h - B + steps.length * B, B * 2, B);
 }

@@ -1,14 +1,61 @@
 /**
- * @fileoverview Motor principal de renderizado 2.5D: Orquesta la cámara, el terreno del Bosque Exterior
- * tipo Zelda (hierba, senderos, río animado, puentes, árboles volumétricos, riscos y portales de mazmorra),
- * las losas de las 4 Mazmorras HeroQuest, la cola unificada Y-Sorting, partículas, iluminación y Minimapa.
- * Capa 4: Depende de constants.js, WallRenderer.js, FurnitureRenderer.js y MiniatureRenderer.js.
+ * @fileoverview Motor principal de renderizado pixel-art (16 bits, vista cenital 3/4).
+ * Orquesta la cámara, el terreno del Bosque Exterior (hierba, senderos con bordes autotile,
+ * río animado, puentes, árboles y riscos), las losas de las 4 Mazmorras, la cola unificada
+ * Y-Sorting, partículas y el Minimapa.
+ * Capa 4: Depende de constants.js, envDraw.js, WallRenderer.js, FurnitureRenderer.js y MiniatureRenderer.js.
  */
 
-import { TILE, CELL, FOG, PALETTE } from '../config/constants.js';
+import { TILE, CELL, FOG, PALETTE, ZONE_ID } from '../config/constants.js';
 import { WallRenderer } from './WallRenderer.js';
 import { FurnitureRenderer } from './FurnitureRenderer.js';
 import { MiniatureRenderer } from './MiniatureRenderer.js';
+import { PX, snap } from './Sprites.js';
+import { envTile, pixelLabel, PIXEL_FONT, stripEmoji } from './envDraw.js';
+
+/** Tema gráfico de cada mazmorra (selecciona la rampa de color de suelos y muros). */
+const DUNGEON_THEME = {
+    [ZONE_ID.DUNGEON_FELLMARG]: 'fellmarg',
+    [ZONE_ID.DUNGEON_CRYPT]: 'crypt',
+    [ZONE_ID.DUNGEON_KELLAR]: 'kellar',
+    [ZONE_ID.DUNGEON_SWAMP]: 'swamp'
+};
+
+/** Colores del minimapa (paleta pixel-art). */
+const MM = {
+    grass: '#68b848',
+    tree: '#205020',
+    water: '#3870c8',
+    bridge: '#b07038',
+    dirt: '#d8b070',
+    plaza: '#a8a8a0',
+    floor: '#7880a8',
+    corridor: '#585e88',
+    stairs: '#98d868'
+};
+
+const byY = (a, b) => a.sortY - b.sortY;
+
+/** Clasifica un color hex de alfombra en una de las alfombras pixel-art. */
+function rugFromHex(hex) {
+    const v = String(hex || '').replace('#', '');
+    if (v.length < 6) return 'red';
+    const r = parseInt(v.slice(0, 2), 16);
+    const g = parseInt(v.slice(2, 4), 16);
+    const b = parseInt(v.slice(4, 6), 16);
+    if (r >= g && r >= b) {
+        if (g > r * 0.35) return 'gold';
+        if (b > r * 0.6) return 'purple';
+        return 'red';
+    }
+    if (g >= b) return 'green';
+    if (r > b * 0.6) return 'purple';
+    return 'blue';
+}
+
+const isGreenCell = (cell) =>
+    cell === CELL.GRASS || cell === CELL.FOREST_FLOOR || cell === CELL.TREE || cell === CELL.CLIFF;
+const isWaterish = (cell) => cell === CELL.WATER || cell === CELL.BRIDGE;
 
 export class RenderEngine {
     /**
@@ -25,6 +72,7 @@ export class RenderEngine {
         this.canvas.width = width;
         this.canvas.height = height;
         this.camera.resize(width, height);
+        this.ctx.imageSmoothingEnabled = false;
     }
 
     /**
@@ -41,7 +89,7 @@ export class RenderEngine {
     }
 
     /**
-     * Renderiza un fotograma completo del mundo 2.5D (Mazmorra o Bosque Exterior 4x).
+     * Renderiza un fotograma completo del mundo (Mazmorra o Bosque Exterior 4x).
      */
     render(scene) {
         const { board, player, companions = [], monsters, elapsed } = scene;
@@ -49,29 +97,36 @@ export class RenderEngine {
         const width = this.canvas.width;
         const height = this.canvas.height;
 
-        // 1. Limpiar pantalla (verde profundo en el bosque, abismo en mazmorra)
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+
+        // 1. Limpiar pantalla (verde bosque o negro de mazmorra)
         ctx.fillStyle = board?.isOverworld ? PALETTE.OVERWORLD_BG : PALETTE.VOID_BG;
         ctx.fillRect(0, 0, width, height);
 
         if (!board) return;
 
-        // 2. Aplicar transformación de Cámara 2.5D (try/finally: una excepción no debe dejar el save() colgado)
+        // Tema activo de la mazmorra para muros, puertas y suelos
+        const theme = board.isOverworld ? null : DUNGEON_THEME[board.zoneId] || 'fellmarg';
+        WallRenderer.theme = theme || 'fellmarg';
+        FurnitureRenderer.theme = theme || 'fellmarg';
+
+        // 2. Transformación de Cámara (try/finally: una excepción no debe dejar el save() colgado)
         this.camera.applyTransform(ctx);
         try {
-            this._renderWorld(ctx, scene);
+            this._renderWorld(ctx, scene, theme);
         } finally {
             this.camera.restoreTransform(ctx);
         }
 
-        // 8. Viñeta perimetral + Minimapa Táctico en esquina inferior derecha
-        this._drawScreenVignette(ctx, width, height, board.isOverworld);
+        // 3. Minimapa Táctico en esquina inferior derecha (sin viñeta: estética 16 bits limpia)
         this._drawMinimap(ctx, width, height, board, player, companions, monsters, elapsed);
     }
 
     /**
-     * Pasadas 3–7 en coordenadas de mundo (bajo la transformación de cámara).
+     * Pasadas en coordenadas de mundo (bajo la transformación de cámara).
      */
-    _renderWorld(ctx, scene) {
+    _renderWorld(ctx, scene, theme) {
         const { board, player, companions = [], monsters, lootItems, particles, interaction, quests, elapsed } = scene;
         const bounds = this._getVisibleBounds(board);
         const partyCount = 1 + (companions ? companions.length : 0);
@@ -84,62 +139,48 @@ export class RenderEngine {
         const inViewCell = (col, row) => col >= cMin && col <= cMax && row >= rMin && row <= rMax;
         const inViewPx = (x, y) => inViewCell(Math.floor(x / TILE), Math.floor(y / TILE));
 
-        // 3. PASADA 1: Terreno / Suelo (Plano Z=0)
+        // PASADA 1: Terreno / Suelo
         if (board.isOverworld) {
             this._drawOverworldGround(ctx, board, elapsed, bounds);
         } else {
-            this._drawBoardFloor(ctx, board, elapsed, bounds);
-            this._drawBoardTraps(ctx, board, elapsed);
+            this._drawBoardFloor(ctx, board, elapsed, bounds, theme);
+            this._drawBoardTraps(ctx, board, elapsed, theme);
         }
 
-        // 4. Indicador táctico de orientación y alcance bajo los pies del héroe
+        // Indicador de orientación del ataque (tres puntos pixelados)
         if (player && !player.dead) {
             this._drawAimReticle(ctx, player);
         }
 
-        // 5. PASADA 2: Cola Unificada de Y-Sorting (Objetos con Volumen Vertical 2.5D)
+        // PASADA 2: Cola unificada de Y-Sorting
         const renderQueue = [];
 
-        // 5a. Muros de Mazmorra, Árboles del Bosque (CELL.TREE) y Riscos (CELL.CLIFF) dentro del frustum
         for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
             for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
                 const cell = board.grid[r][c];
-                const fogState = board.fog[r][c];
-                if (fogState === FOG.UNSEEN) continue;
+                if (cell !== CELL.WALL && cell !== CELL.TREE && cell !== CELL.CLIFF) continue;
+                if (board.fog[r][c] === FOG.UNSEEN) continue;
 
                 if (cell === CELL.WALL) {
-                    renderQueue.push({
-                        sortY: (r + 1) * TILE,
-                        draw: () => WallRenderer.drawWallBlock(ctx, board, c, r)
-                    });
+                    renderQueue.push({ sortY: (r + 1) * TILE, draw: () => WallRenderer.drawWallBlock(ctx, board, c, r) });
                 } else if (cell === CELL.TREE) {
-                    renderQueue.push({
-                        sortY: (r + 0.92) * TILE,
-                        draw: () => WallRenderer.drawTreeBlock(ctx, board, c, r, elapsed)
-                    });
-                } else if (cell === CELL.CLIFF) {
-                    renderQueue.push({
-                        sortY: (r + 1) * TILE,
-                        draw: () => WallRenderer.drawCliffBlock(ctx, board, c, r)
-                    });
+                    renderQueue.push({ sortY: (r + 0.92) * TILE, draw: () => WallRenderer.drawTreeBlock(ctx, board, c, r, elapsed) });
+                } else {
+                    renderQueue.push({ sortY: (r + 1) * TILE, draw: () => WallRenderer.drawCliffBlock(ctx, board, c, r) });
                 }
             }
         }
 
-        // 5a-bis. Portales Monumentales de las 4 Mazmorras en el Bosque Exterior
+        // Portales de las 4 Mazmorras en el Bosque Exterior
         if (Array.isArray(board.portals)) {
             for (const portal of board.portals) {
                 if (!inViewPx(portal.x, portal.y)) continue;
-                renderQueue.push({
-                    sortY: portal.y + 18,
-                    draw: () => WallRenderer.drawDungeonPortal(ctx, portal, elapsed, partyCount)
-                });
+                renderQueue.push({ sortY: portal.y + 18, draw: () => WallRenderer.drawDungeonPortal(ctx, portal, elapsed, partyCount) });
             }
         }
 
-        // 5a-ter. NPCs de Misiones Secundarias en el Bosque Exterior
+        // NPCs de Misiones Secundarias
         if (Array.isArray(board.npcs) && board.npcs.length > 0) {
-            // El mapa de misiones solo se construye si hay algún NPC dentro de cámara
             let questMap = null;
             for (const npc of board.npcs) {
                 if (!inViewPx(npc.x, npc.y)) continue;
@@ -148,119 +189,87 @@ export class RenderEngine {
                     questMap = new Map(questList.map((q) => [q.id, q]));
                 }
                 const quest = questMap.get(npc.questId);
-                renderQueue.push({
-                    sortY: npc.y + 6,
-                    draw: () => MiniatureRenderer.drawNPC(ctx, npc, quest, elapsed)
-                });
+                renderQueue.push({ sortY: npc.y + 6, draw: () => MiniatureRenderer.drawNPC(ctx, npc, quest, elapsed) });
             }
         }
 
-        // 5b. Puertas de mazmorra
+        // Puertas de mazmorra
         for (const door of board.doors) {
             if (!inViewCell(door.col, door.row)) continue;
             const fogState = board.fog[door.row]?.[door.col] ?? FOG.UNSEEN;
             if (fogState !== FOG.UNSEEN) {
-                renderQueue.push({
-                    sortY: (door.row + 1) * TILE + 1,
-                    draw: () => WallRenderer.drawDoor(ctx, door, fogState)
-                });
+                renderQueue.push({ sortY: (door.row + 1) * TILE + 1, draw: () => WallRenderer.drawDoor(ctx, door, fogState) });
             }
         }
 
-        // 5c. Antorchas murales y exteriores
+        // Antorchas murales y exteriores
         for (const torch of board.torches) {
             if (!inViewCell(torch.col, torch.row)) continue;
             const fogState = board.fog[torch.row]?.[torch.col] ?? FOG.UNSEEN;
             if (fogState !== FOG.UNSEEN) {
-                renderQueue.push({
-                    sortY: (torch.row + 1) * TILE + 2,
-                    draw: () => WallRenderer.drawTorch(ctx, torch, elapsed)
-                });
+                renderQueue.push({ sortY: (torch.row + 1) * TILE + 2, draw: () => WallRenderer.drawTorch(ctx, torch, elapsed, board.isOverworld) });
             }
         }
 
-        // 5d. Muebles de Mazmorra y Objetos Interactuables del Bosque
+        // Muebles de Mazmorra y Objetos del Bosque
         for (const furn of board.furniture) {
             if (!inViewCell(furn.col, furn.row)) continue;
             const fogState = board.fog[furn.row]?.[furn.col] ?? FOG.UNSEEN;
             if (fogState !== FOG.UNSEEN) {
-                renderQueue.push({
-                    sortY: furn.y + furn.height,
-                    draw: () => FurnitureRenderer.drawFurniture(ctx, furn, fogState, elapsed)
-                });
+                renderQueue.push({ sortY: furn.y + furn.height, draw: () => FurnitureRenderer.drawFurniture(ctx, furn, fogState, elapsed) });
             }
         }
 
-        // 5e. Objetos de Botín (Monedas y Pociones con rebote Z)
+        // Botín
         if (lootItems) {
             for (const item of lootItems) {
                 if (item.collected) continue;
                 const col = Math.floor(item.x / TILE);
                 const row = Math.floor(item.y / TILE);
                 if (!inViewCell(col, row)) continue;
-                const fogState = board.fog[row]?.[col] ?? FOG.UNSEEN;
-                if (fogState === FOG.VISIBLE) {
-                    renderQueue.push({
-                        sortY: item.y,
-                        draw: () => item.draw(ctx)
-                    });
+                if ((board.fog[row]?.[col] ?? FOG.UNSEEN) === FOG.VISIBLE) {
+                    renderQueue.push({ sortY: item.y, draw: () => item.draw(ctx, elapsed) });
                 }
             }
         }
 
-        // 5f. Miniaturas de Monstruos
+        // Monstruos
         if (monsters) {
             for (const monster of monsters) {
                 if (monster.dead) continue;
                 const col = Math.floor(monster.x / TILE);
                 const row = Math.floor(monster.y / TILE);
                 if (!inViewCell(col, row)) continue;
-                const fogState = board.fog[row]?.[col] ?? FOG.UNSEEN;
-                if (fogState === FOG.VISIBLE) {
-                    renderQueue.push({
-                        sortY: monster.y + monster.radius * 0.35,
-                        draw: () => MiniatureRenderer.drawMonster(ctx, monster, elapsed)
-                    });
+                if ((board.fog[row]?.[col] ?? FOG.UNSEEN) === FOG.VISIBLE) {
+                    renderQueue.push({ sortY: monster.y + monster.radius * 0.35, draw: () => MiniatureRenderer.drawMonster(ctx, monster, elapsed) });
                 }
             }
         }
 
-        // 5g. Miniaturas de Compañeros IA (los otros 3 Héroes del equipo)
+        // Compañeros y Héroe líder
         if (companions) {
             for (const ally of companions) {
                 if (!ally || ally.dead) continue;
-                renderQueue.push({
-                    sortY: ally.y + ally.radius * 0.35,
-                    draw: () => MiniatureRenderer.drawPlayer(ctx, ally, elapsed)
-                });
+                renderQueue.push({ sortY: ally.y + ally.radius * 0.35, draw: () => MiniatureRenderer.drawPlayer(ctx, ally, elapsed) });
             }
         }
-
-        // 5h. Miniatura del Héroe Líder (Jugador)
         if (player && !player.dead) {
-            renderQueue.push({
-                sortY: player.y + player.radius * 0.35,
-                draw: () => MiniatureRenderer.drawPlayer(ctx, player, elapsed)
-            });
+            renderQueue.push({ sortY: player.y + player.radius * 0.35, draw: () => MiniatureRenderer.drawPlayer(ctx, player, elapsed) });
         }
 
-        // Ordenar estrictamente por coordenada Y en el plano Z=0
-        renderQueue.sort((a, b) => a.sortY - b.sortY);
-
+        renderQueue.sort(byY);
         for (const item of renderQueue) {
             item.draw();
         }
 
-        // 6. PASADA 3: Partículas 2.5D, Arcos de Corte (Slash) y Ondas Mágicas
+        // PASADA 3: Partículas y efectos
         if (particles) {
             particles.drawWorldEffects(ctx);
         }
 
-        // 7. PASADA 4: Iluminación Dinámica (Luz de Antorcha o Rayos de Sol del Bosque) y Textos Flotantes
+        // PASADA 4: Ambiente (motas de luz del bosque)
         if (board.isOverworld) {
             this._drawForestAtmosphere(ctx, board, player, elapsed);
-        } else if (player && !player.dead) {
-            this._drawDynamicTorchLight(ctx, player, elapsed);
         }
 
         if (interaction && interaction.activeHighlight) {
@@ -273,217 +282,155 @@ export class RenderEngine {
     }
 
     /**
-     * Dibuja el terreno del Bosque Exterior estilo Zelda: A Link to the Past
-     * (Praderas con flores, senderos de tierra con bordes orgánicos, río animado y puentes de madera).
+     * Terreno del Bosque Exterior con losetas pixel-art y bordes autotile.
      */
     _drawOverworldGround(ctx, board, elapsed, bounds) {
         const minR = bounds ? bounds.minRow : 0;
         const maxR = bounds ? bounds.maxRow : board.rows - 1;
         const minC = bounds ? bounds.minCol : 0;
         const maxC = bounds ? bounds.maxCol : board.cols - 1;
+        const grid = board.grid;
+        const rows = board.rows;
+        const cols = board.cols;
+        const at = (r, c) => (r < 0 || c < 0 || r >= rows || c >= cols ? CELL.GRASS : grid[r][c]);
+        const waterFrame = Math.floor(elapsed * 3) % 3;
 
         for (let r = minR; r <= maxR; r++) {
             for (let c = minC; c <= maxC; c++) {
-                const cellType = board.grid[r][c];
+                const cell = grid[r][c];
                 const x = c * TILE;
                 const y = r * TILE;
-                const checker = (r + c) % 2 === 0;
-                const variant = board.tileVariants[r][c];
+                const v = board.tileVariants[r][c];
 
-                if (cellType === CELL.WATER) {
-                    // Agua del río con ondas animadas
-                    ctx.fillStyle = checker ? PALETTE.WATER_DEEP : PALETTE.WATER_SHALLOW;
-                    ctx.fillRect(x, y, TILE, TILE);
+                if (cell === CELL.WATER) {
+                    envTile(ctx, 'overworld', `water${(waterFrame + ((r + c) & 1)) % 3}`, x, y);
+                    if (!isWaterish(at(r - 1, c))) envTile(ctx, 'overworld', `shore_N${waterFrame}`, x, y);
+                    if (!isWaterish(at(r + 1, c))) envTile(ctx, 'overworld', `shore_S${waterFrame}`, x, y);
+                    if (!isWaterish(at(r, c - 1))) envTile(ctx, 'overworld', `shore_W${waterFrame}`, x, y);
+                    if (!isWaterish(at(r, c + 1))) envTile(ctx, 'overworld', `shore_E${waterFrame}`, x, y);
+                    continue;
+                }
 
-                    const waveX = Math.sin(elapsed * 3.2 + r * 0.8 + c * 0.5) * 4;
-                    ctx.strokeStyle = PALETTE.WATER_FOAM;
-                    ctx.lineWidth = 1.5;
-                    ctx.globalAlpha = 0.55;
-                    ctx.beginPath();
-                    ctx.moveTo(x + 10 + waveX, y + 16);
-                    ctx.lineTo(x + 26 + waveX, y + 16);
-                    ctx.moveTo(x + 18 - waveX, y + 34);
-                    ctx.lineTo(x + 34 - waveX, y + 34);
-                    ctx.stroke();
-                    ctx.globalAlpha = 1.0;
-
-                    // Espuma en la orilla si limita con tierra
-                    if (c > 0 && board.grid[r][c - 1] !== CELL.WATER && board.grid[r][c - 1] !== CELL.BRIDGE) {
-                        ctx.fillStyle = 'rgba(147, 197, 253, 0.45)';
-                        ctx.fillRect(x, y, 5, TILE);
-                    }
-                    if (c < board.cols - 1 && board.grid[r][c + 1] !== CELL.WATER && board.grid[r][c + 1] !== CELL.BRIDGE) {
-                        ctx.fillStyle = 'rgba(147, 197, 253, 0.45)';
-                        ctx.fillRect(x + TILE - 5, y, 5, TILE);
+                if (cell === CELL.BRIDGE) {
+                    const wN = at(r - 1, c) === CELL.WATER;
+                    const wS = at(r + 1, c) === CELL.WATER;
+                    const wW = at(r, c - 1) === CELL.WATER;
+                    const wE = at(r, c + 1) === CELL.WATER;
+                    const horizontal = wN || wS || !(wW || wE);
+                    envTile(ctx, 'overworld', horizontal ? 'bridge_h' : 'bridge_v', x, y);
+                    if (horizontal) {
+                        if (wN) envTile(ctx, 'overworld', 'rail_N', x, y);
+                        if (wS) envTile(ctx, 'overworld', 'rail_S', x, y);
+                    } else {
+                        if (wW) envTile(ctx, 'overworld', 'rail_W', x, y);
+                        if (wE) envTile(ctx, 'overworld', 'rail_E', x, y);
                     }
                     continue;
                 }
 
-                if (cellType === CELL.BRIDGE) {
-                    // Fondo de agua bajo el puente
-                    ctx.fillStyle = PALETTE.WATER_DEEP;
-                    ctx.fillRect(x, y, TILE, TILE);
-
-                    // Tablones de madera del puente
-                    ctx.fillStyle = PALETTE.BRIDGE_WOOD;
-                    ctx.fillRect(x, y + 2, TILE, TILE - 4);
-
-                    ctx.strokeStyle = PALETTE.BRIDGE_RAIL;
-                    ctx.lineWidth = 2;
-                    for (let px = x + 6; px < x + TILE; px += 12) {
-                        ctx.beginPath();
-                        ctx.moveTo(px, y + 2);
-                        ctx.lineTo(px, y + TILE - 2);
-                        ctx.stroke();
-                    }
-
-                    // Barandillas superior/inferior si limita con agua
-                    if (r > 0 && board.grid[r - 1][c] === CELL.WATER) {
-                        ctx.fillStyle = PALETTE.BRIDGE_RAIL;
-                        ctx.fillRect(x, y, TILE, 5);
-                    }
-                    if (r < board.rows - 1 && board.grid[r + 1][c] === CELL.WATER) {
-                        ctx.fillStyle = PALETTE.BRIDGE_RAIL;
-                        ctx.fillRect(x, y + TILE - 5, TILE, 5);
-                    }
+                if (cell === CELL.DIRT_PATH) {
+                    envTile(ctx, 'overworld', v > 0.7 ? 'dirt2' : v > 0.35 ? 'dirt1' : 'dirt0', x, y);
+                    const gN = isGreenCell(at(r - 1, c));
+                    const gS = isGreenCell(at(r + 1, c));
+                    const gW = isGreenCell(at(r, c - 1));
+                    const gE = isGreenCell(at(r, c + 1));
+                    if (gN) envTile(ctx, 'overworld', 'edge_N', x, y);
+                    if (gS) envTile(ctx, 'overworld', 'edge_S', x, y);
+                    if (gW) envTile(ctx, 'overworld', 'edge_W', x, y);
+                    if (gE) envTile(ctx, 'overworld', 'edge_E', x, y);
+                    if (gN && gW) envTile(ctx, 'overworld', 'corner_NW', x, y);
+                    if (gN && gE) envTile(ctx, 'overworld', 'corner_NE', x, y);
+                    if (gS && gW) envTile(ctx, 'overworld', 'corner_SW', x, y);
+                    if (gS && gE) envTile(ctx, 'overworld', 'corner_SE', x, y);
+                    if (!gN && !gW && isGreenCell(at(r - 1, c - 1))) envTile(ctx, 'overworld', 'inner_NW', x, y);
+                    if (!gN && !gE && isGreenCell(at(r - 1, c + 1))) envTile(ctx, 'overworld', 'inner_NE', x, y);
+                    if (!gS && !gW && isGreenCell(at(r + 1, c - 1))) envTile(ctx, 'overworld', 'inner_SW', x, y);
+                    if (!gS && !gE && isGreenCell(at(r + 1, c + 1))) envTile(ctx, 'overworld', 'inner_SE', x, y);
                     continue;
                 }
 
-                if (cellType === CELL.DIRT_PATH) {
-                    ctx.fillStyle = checker ? PALETTE.DIRT_A : PALETTE.DIRT_B;
-                    ctx.fillRect(x, y, TILE, TILE);
-
-                    // Piedrecitas del camino estilo Zelda
-                    if (variant > 0.65) {
-                        ctx.fillStyle = PALETTE.DIRT_BORDER;
-                        ctx.beginPath();
-                        ctx.arc(x + 14, y + 18, 3, 0, Math.PI * 2);
-                        ctx.arc(x + 34, y + 30, 2.2, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-
-                    // Bordes suaves con la hierba adyacente
-                    ctx.fillStyle = PALETTE.DIRT_BORDER;
-                    if (r > 0 && board.grid[r - 1][c] === CELL.GRASS) ctx.fillRect(x, y, TILE, 3);
-                    if (r < board.rows - 1 && board.grid[r + 1][c] === CELL.GRASS) ctx.fillRect(x, y + TILE - 3, TILE, 3);
-                    if (c > 0 && board.grid[r][c - 1] === CELL.GRASS) ctx.fillRect(x, y, 3, TILE);
-                    if (c < board.cols - 1 && board.grid[r][c + 1] === CELL.GRASS) ctx.fillRect(x + TILE - 3, y, 3, TILE);
+                if (cell === CELL.STONE_PLAZA) {
+                    envTile(ctx, 'overworld', (r + c) % 3 === 0 ? 'plaza1' : 'plaza0', x, y);
                     continue;
                 }
 
-                if (cellType === CELL.STONE_PLAZA) {
-                    ctx.fillStyle = checker ? PALETTE.PLAZA_A : PALETTE.PLAZA_B;
-                    ctx.fillRect(x, y, TILE, TILE);
-                    ctx.strokeStyle = '#292524';
-                    ctx.lineWidth = 1.2;
-                    ctx.strokeRect(x + 1, y + 1, TILE - 2, TILE - 2);
-
-                    if (variant < 0.25) {
-                        ctx.fillStyle = 'rgba(77, 124, 15, 0.28)';
-                        ctx.fillRect(x + 4, y + 4, 8, 8);
-                    }
+                if (cell === CELL.FOREST_FLOOR || cell === CELL.TREE || cell === CELL.CLIFF) {
+                    envTile(ctx, 'overworld', v > 0.8 ? 'forest1' : v > 0.6 ? 'forest2' : 'forest0', x, y);
+                    // Transición suave hacia la pradera vecina (autotile)
+                    const gN = at(r - 1, c) === CELL.GRASS;
+                    const gS = at(r + 1, c) === CELL.GRASS;
+                    const gW = at(r, c - 1) === CELL.GRASS;
+                    const gE = at(r, c + 1) === CELL.GRASS;
+                    if (gN) envTile(ctx, 'overworld', 'fedge_N', x, y);
+                    if (gS) envTile(ctx, 'overworld', 'fedge_S', x, y);
+                    if (gW) envTile(ctx, 'overworld', 'fedge_W', x, y);
+                    if (gE) envTile(ctx, 'overworld', 'fedge_E', x, y);
+                    if (gN && gW) envTile(ctx, 'overworld', 'fcorner_NW', x, y);
+                    if (gN && gE) envTile(ctx, 'overworld', 'fcorner_NE', x, y);
+                    if (gS && gW) envTile(ctx, 'overworld', 'fcorner_SW', x, y);
+                    if (gS && gE) envTile(ctx, 'overworld', 'fcorner_SE', x, y);
+                    if (!gN && !gW && at(r - 1, c - 1) === CELL.GRASS) envTile(ctx, 'overworld', 'finner_NW', x, y);
+                    if (!gN && !gE && at(r - 1, c + 1) === CELL.GRASS) envTile(ctx, 'overworld', 'finner_NE', x, y);
+                    if (!gS && !gW && at(r + 1, c - 1) === CELL.GRASS) envTile(ctx, 'overworld', 'finner_SW', x, y);
+                    if (!gS && !gE && at(r + 1, c + 1) === CELL.GRASS) envTile(ctx, 'overworld', 'finner_SE', x, y);
                     continue;
                 }
 
-                // Por defecto: Hierba de pradera (CELL.GRASS) o suelo de arboleda (CELL.FOREST_FLOOR / TREE)
-                const isDarkForest = cellType === CELL.FOREST_FLOOR || cellType === CELL.TREE;
-                if (isDarkForest) {
-                    ctx.fillStyle = checker ? PALETTE.FOREST_FLOOR_A : PALETTE.FOREST_FLOOR_B;
-                } else {
-                    ctx.fillStyle = checker ? PALETTE.GRASS_A : PALETTE.GRASS_B;
-                }
-                ctx.fillRect(x, y, TILE, TILE);
-
-                // Briznas de hierba y florecillas silvestres estilo Zelda
-                if (variant > 0.72) {
-                    ctx.strokeStyle = '#4ade80';
-                    ctx.lineWidth = 1.3;
-                    ctx.beginPath();
-                    ctx.moveTo(x + 16, y + 28);
-                    ctx.lineTo(x + 13, y + 20);
-                    ctx.moveTo(x + 19, y + 28);
-                    ctx.lineTo(x + 22, y + 20);
-                    ctx.stroke();
-                } else if (variant < 0.08 && !isDarkForest) {
-                    // Florecilla silvestre blanca/amarilla
-                    ctx.fillStyle = '#fef08a';
-                    ctx.beginPath();
-                    ctx.arc(x + 28, y + 22, 2.5, 0, Math.PI * 2);
-                    ctx.fill();
-                }
+                // Hierba: mayoría lisa, con matas y flores ocasionales
+                let g = 'grass0';
+                if (v > 0.93) g = 'grass3';
+                else if (v > 0.88) g = 'grass4';
+                else if (v > 0.74) g = 'grass2';
+                else if (v > 0.66) g = 'grass5';
+                else if (v > 0.33) g = 'grass1';
+                envTile(ctx, 'overworld', g, x, y);
             }
         }
     }
 
     /**
-     * Dibuja las losas del tablero de Mazmorra HeroQuest con juntas biseladas, grietas y Escalera Imperial.
+     * Losas de Mazmorra por tema, alfombras 9-slice, escalera de salida y niebla explorada.
      */
-    _drawBoardFloor(ctx, board, elapsed = 0, bounds = null) {
+    _drawBoardFloor(ctx, board, elapsed = 0, bounds = null, theme = 'fellmarg') {
         const minR = bounds ? bounds.minRow : 0;
         const maxR = bounds ? bounds.maxRow : board.rows - 1;
         const minC = bounds ? bounds.minCol : 0;
         const maxC = bounds ? bounds.maxCol : board.cols - 1;
+
         for (let r = minR; r <= maxR; r++) {
             for (let c = minC; c <= maxC; c++) {
                 const cellType = board.grid[r][c];
                 const fogState = board.fog[r][c];
-
-                if (cellType === CELL.WALL || cellType === CELL.VOID || fogState === FOG.UNSEEN) {
-                    continue;
-                }
+                if (cellType === CELL.WALL || cellType === CELL.VOID || fogState === FOG.UNSEEN) continue;
 
                 const x = c * TILE;
                 const y = r * TILE;
-                const checker = (r + c) % 2 === 0;
                 const room = board.getRoomAt(c, r);
+                const v = board.tileVariants[r][c];
 
-                if (room) {
-                    ctx.fillStyle = checker ? room.floorColorA : room.floorColorB;
-                } else {
-                    ctx.fillStyle = checker ? PALETTE.CORRIDOR_A : PALETTE.CORRIDOR_B;
-                }
-
-                ctx.fillRect(x, y, TILE, TILE);
-
-                ctx.strokeStyle = '#141116';
-                ctx.lineWidth = 1.5;
-                ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
-
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.045)';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(x + 2.5, y + 2.5, TILE - 5, TILE - 5);
-
-                const variant = board.tileVariants[r][c];
-                if (variant > 0.78) {
-                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.28)';
-                    ctx.beginPath();
-                    ctx.moveTo(x + 10, y + 12);
-                    ctx.lineTo(x + 22, y + 24);
-                    ctx.lineTo(x + 18, y + 34);
-                    ctx.stroke();
-                } else if (variant < 0.12) {
-                    ctx.fillStyle = 'rgba(77, 124, 15, 0.16)';
-                    ctx.beginPath();
-                    ctx.arc(x + 34, y + 14, 5, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-
-                if (
-                    room &&
-                    c > room.c1 &&
-                    c < room.c2 &&
-                    r > room.r1 &&
-                    r < room.r2
-                ) {
-                    ctx.fillStyle = room.carpetColor;
-                    ctx.globalAlpha = 0.35;
-                    ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
-                    ctx.globalAlpha = 1.0;
-                }
-
-                // Escalera Imperial de salida al Bosque Exterior (2x2)
                 if (cellType === CELL.STAIRS) {
-                    this._drawStairTile(ctx, x, y, elapsed);
+                    envTile(ctx, 'dungeon', `${theme}_stairs`, x, y);
+                } else if (!room) {
+                    envTile(ctx, 'dungeon', `${theme}_corridor${v > 0.5 ? 1 : 0}`, x, y);
+                } else if (c > room.c1 && c < room.c2 && r > room.r1 && r < room.r2) {
+                    // Alfombra 9-slice en el interior de la sala
+                    if (!room._rug) room._rug = rugFromHex(room.carpetColor);
+                    const n = r === room.r1 + 1 ? 'N' : r === room.r2 - 1 ? 'S' : '';
+                    const w = c === room.c1 + 1 ? 'W' : c === room.c2 - 1 ? 'E' : '';
+                    envTile(ctx, 'dungeon', `rug_${room._rug}_${n + w || 'C'}`, x, y);
+                } else {
+                    let f = 0;
+                    if (v > 0.9) f = 2;
+                    else if (v < 0.08) f = 3;
+                    else if (v > 0.8) f = 4;
+                    else if (v > 0.45) f = 1;
+                    envTile(ctx, 'dungeon', `${theme}_floor${f}`, x, y);
+                }
+
+                // Sombra dura bajo un muro situado al norte
+                if (r > 0 && board.grid[r - 1][c] === CELL.WALL) {
+                    ctx.fillStyle = 'rgba(16, 12, 24, 0.45)';
+                    ctx.fillRect(x, y, TILE, PX * 2);
                 }
 
                 if (fogState === FOG.EXPLORED) {
@@ -493,31 +440,18 @@ export class RenderEngine {
             }
         }
 
-        // Letrero permanente sobre la Escalera Imperial indicando la salida al Bosque
+        // Letrero permanente sobre la Escalera de salida al Bosque
         if (board.exitStairs) {
             const st = board.exitStairs;
             const col = Math.floor(st.col);
             const row = Math.floor(st.row);
             if ((board.fog[row]?.[col] ?? FOG.UNSEEN) !== FOG.UNSEEN) {
-                ctx.save();
-                ctx.font = 'bold 10px "Cinzel", Georgia, serif';
-                ctx.fillStyle = 'rgba(20, 83, 45, 0.88)';
-                ctx.strokeStyle = '#4ade80';
-                ctx.lineWidth = 1.2;
-                const bw = 152;
-                const bh = 18;
-                ctx.fillRect(st.x - bw * 0.5, st.y - 52, bw, bh);
-                ctx.strokeRect(st.x - bw * 0.5, st.y - 52, bw, bh);
-                ctx.fillStyle = '#dcfce7';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('🌲 SALIDA AL BOSQUE [E]', st.x, st.y - 43);
-                ctx.restore();
+                pixelLabel(ctx, 'SALIDA AL BOSQUE [E]', st.x, st.y - 42, { bg: '#183018' });
             }
         }
     }
 
-    _drawBoardTraps(ctx, board, elapsed) {
+    _drawBoardTraps(ctx, board, elapsed, theme = 'fellmarg') {
         if (!board.traps) return;
 
         for (const trap of board.traps) {
@@ -527,213 +461,47 @@ export class RenderEngine {
 
             const tx = trap.col * TILE;
             const ty = trap.row * TILE;
-
-            ctx.save();
-
-            if (trap.state === 'hidden') {
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.36)';
-                ctx.lineWidth = 1.2;
-                ctx.beginPath();
-                ctx.moveTo(tx + 14, ty + 16);
-                ctx.lineTo(tx + 24, ty + 24);
-                ctx.lineTo(tx + 34, ty + 20);
-                ctx.stroke();
-            } else if (trap.state === 'detected') {
-                const pulse = 0.55 + Math.sin(elapsed * 8) * 0.3;
-                ctx.strokeStyle = `rgba(249, 115, 22, ${pulse})`;
-                ctx.lineWidth = 2;
-                ctx.strokeRect(tx + 6, ty + 6, TILE - 12, TILE - 12);
-
-                ctx.fillStyle = 'rgba(249, 115, 22, 0.18)';
-                ctx.fillRect(tx + 6, ty + 6, TILE - 12, TILE - 12);
-            } else if (trap.state === 'disarmed') {
-                ctx.strokeStyle = 'rgba(74, 222, 128, 0.55)';
-                ctx.lineWidth = 1.5;
-                ctx.strokeRect(tx + 9, ty + 9, TILE - 18, TILE - 18);
-            } else if (trap.state === 'triggered') {
-                if (trap.type === 'pit') {
-                    ctx.fillStyle = '#050407';
-                    ctx.fillRect(tx + 6, ty + 6, TILE - 12, TILE - 12);
-                    ctx.strokeStyle = '#57534e';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(tx + 6, ty + 6, TILE - 12, TILE - 12);
-
-                    ctx.fillStyle = '#94a3b8';
-                    for (let sx = tx + 12; sx <= tx + 36; sx += 8) {
-                        ctx.beginPath();
-                        ctx.moveTo(sx - 2, ty + 38);
-                        ctx.lineTo(sx + 2, ty + 38);
-                        ctx.lineTo(sx, ty + 26);
-                        ctx.fill();
-                    }
-                } else if (trap.type === 'spear') {
-                    ctx.fillStyle = '#1c1917';
-                    ctx.fillRect(tx + 10, ty + 10, TILE - 20, TILE - 20);
-                    ctx.strokeStyle = '#e2e8f0';
-                    ctx.lineWidth = 2.2;
-                    for (let i = 0; i < 3; i++) {
-                        const lx = tx + 15 + i * 9;
-                        ctx.beginPath();
-                        ctx.moveTo(lx, ty + 34);
-                        ctx.lineTo(lx, ty + 8);
-                        ctx.stroke();
-                    }
-                } else {
-                    ctx.fillStyle = '#57534e';
-                    ctx.beginPath();
-                    ctx.arc(tx + 20, ty + 26, 9, 0, Math.PI * 2);
-                    ctx.arc(tx + 30, ty + 22, 7, 0, Math.PI * 2);
-                    ctx.arc(tx + 24, ty + 32, 6, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-
-            ctx.restore();
+            let frame = null;
+            if (trap.state === 'hidden') frame = 'hidden';
+            else if (trap.state === 'detected') frame = Math.floor(elapsed * 4) % 2 === 0 ? 'detected' : null;
+            else if (trap.state === 'disarmed') frame = 'disarmed';
+            else if (trap.state === 'triggered') frame = trap.type === 'pit' ? 'pit' : trap.type === 'spear' ? 'spear' : 'boulder';
+            if (frame) envTile(ctx, 'dungeon', `${theme}_trap_${frame}`, tx, ty);
         }
     }
 
-    _drawStairTile(ctx, x, y, elapsed = 0) {
-        ctx.save();
-        ctx.fillStyle = '#57534e';
-        ctx.fillRect(x + 3, y + 3, TILE - 6, TILE - 6);
-        for (let step = 0; step < 4; step++) {
-            const sy = y + 5 + step * 10;
-            ctx.fillStyle = step % 2 === 0 ? '#78716c' : '#44403c';
-            ctx.fillRect(x + 5, sy, TILE - 10, 8);
-        }
-
-        // Resplandor verde/dorado de luz exterior entrando por la escalera
-        const glow = 0.45 + Math.sin(elapsed * 4) * 0.25;
-        ctx.strokeStyle = `rgba(74, 222, 128, ${glow})`;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x + 3, y + 3, TILE - 6, TILE - 6);
-        ctx.restore();
-    }
-
+    /** Tres puntos pixelados indicando la dirección y alcance del tajo. */
     _drawAimReticle(ctx, player) {
-        ctx.save();
-        ctx.strokeStyle = 'rgba(250, 204, 21, 0.25)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(
-            player.x,
-            player.y,
-            player.attackRange * 0.72,
-            player.aimAngle - player.attackArc * 0.42,
-            player.aimAngle + player.attackArc * 0.42
-        );
-        ctx.stroke();
-        ctx.restore();
-    }
-
-    _drawDynamicTorchLight(ctx, player, elapsed) {
-        const flicker = Math.sin(elapsed * 9) * 6;
-        const radius = 190 + flicker;
-
-        // Gradiente unitario cacheado; se posiciona/escala con la matriz en vez de recrearlo cada frame
-        if (!this._torchGrad) {
-            const g = ctx.createRadialGradient(0, 0, 12 / 190, 0, 0, 1);
-            g.addColorStop(0, 'rgba(255, 180, 75, 0.14)');
-            g.addColorStop(0.6, 'rgba(255, 140, 40, 0.05)');
-            g.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            this._torchGrad = g;
+        const dist = (player.attackRange || 64) * 0.72;
+        ctx.fillStyle = 'rgba(248, 248, 248, 0.55)';
+        for (let i = -1; i <= 1; i++) {
+            const a = player.aimAngle + i * 0.32;
+            const px = snap(player.x + Math.cos(a) * dist);
+            const py = snap(player.y + Math.sin(a) * dist * 0.85);
+            const s = i === 0 ? PX * 2 : PX;
+            ctx.fillRect(px - s / 2, py - s / 2, s, s);
         }
-
-        ctx.save();
-        ctx.translate(player.x, player.y - player.z);
-        ctx.scale(radius, radius);
-        ctx.fillStyle = this._torchGrad;
-        ctx.beginPath();
-        ctx.arc(0, 0, 1, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
     }
 
-    /**
-     * Efecto de rayos de sol filtrados entre las copas del bosque y luciérnagas doradas estilo Zelda.
-     */
+    /** Motas de luz del bosque: píxeles dorados que parpadean (sin halos). */
     _drawForestAtmosphere(ctx, board, player, elapsed) {
         if (!player) return;
-
-        // Halo solar cálido alrededor del grupo (gradiente cacheado en coordenadas locales)
-        if (!this._sunGrad) {
-            const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 260);
-            g.addColorStop(0, 'rgba(254, 240, 138, 0.10)');
-            g.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            this._sunGrad = g;
-        }
-        ctx.save();
-        ctx.translate(player.x, player.y - 20);
-        ctx.fillStyle = this._sunGrad;
-        ctx.beginPath();
-        ctx.arc(0, 0, 260, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        ctx.save();
-        // Motas de polen / luciérnagas del bosque flotando suavemente
-        for (let i = 0; i < 14; i++) {
+        for (let i = 0; i < 16; i++) {
             const fx = ((i * 211 + Math.sin(elapsed * 0.7 + i) * 45) % (board.width - 100)) + 50;
             const fy = ((i * 163 + Math.cos(elapsed * 0.6 + i * 2) * 35) % (board.height - 100)) + 50;
             const fdx = fx - player.x;
             const fdy = fy - player.y;
-            if (fdx * fdx + fdy * fdy < 480 * 480) {
-                const alpha = 0.35 + Math.sin(elapsed * 3 + i) * 0.25;
-                ctx.fillStyle = `rgba(253, 224, 71, ${alpha})`;
-                ctx.beginPath();
-                ctx.arc(fx, fy, 2.2, 0, Math.PI * 2);
-                ctx.fill();
-            }
+            if (fdx * fdx + fdy * fdy > 480 * 480) continue;
+            const phase = Math.sin(elapsed * 3 + i);
+            if (phase < -0.3) continue;
+            ctx.fillStyle = phase > 0.5 ? '#f8f088' : '#f8c830';
+            ctx.fillRect(snap(fx), snap(fy), PX, PX);
         }
-        ctx.restore();
     }
 
     _drawInteractPrompt(ctx, highlight, elapsed) {
-        const bob = Math.sin(elapsed * 6) * 3;
-        const px = highlight.x;
-        const py = highlight.y - 44 + bob;
-
-        ctx.save();
-        ctx.font = 'bold 12px "Cinzel", Georgia, serif';
-        const textWidth = ctx.measureText(highlight.label).width;
-        const boxW = textWidth + 18;
-        const boxH = 24;
-
-        ctx.fillStyle = 'rgba(15, 12, 20, 0.92)';
-        ctx.strokeStyle = '#facc15';
-        ctx.lineWidth = 1.5;
-        ctx.fillRect(px - boxW * 0.5, py - boxH * 0.5, boxW, boxH);
-        ctx.strokeRect(px - boxW * 0.5, py - boxH * 0.5, boxW, boxH);
-
-        ctx.fillStyle = '#fef08a';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(highlight.label, px, py + 0.5);
-        ctx.restore();
-    }
-
-    _drawScreenVignette(ctx, width, height, isOverworld = false) {
-        // El gradiente solo depende del tamaño y la zona: se cachea
-        const key = `${width}x${height}${isOverworld ? 'o' : 'd'}`;
-        if (this._vignetteKey !== key) {
-            const outerR = Math.max(width, height) * 0.72;
-            const innerR = Math.min(width, height) * 0.32;
-            const grad = ctx.createRadialGradient(
-                width * 0.5,
-                height * 0.5,
-                innerR,
-                width * 0.5,
-                height * 0.5,
-                outerR
-            );
-            grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-            grad.addColorStop(1, isOverworld ? 'rgba(6, 20, 10, 0.42)' : 'rgba(5, 4, 8, 0.68)');
-            this._vignetteKey = key;
-            this._vignetteGrad = grad;
-        }
-
-        ctx.fillStyle = this._vignetteGrad;
-        ctx.fillRect(0, 0, width, height);
+        const bob = Math.floor(elapsed * 3) % 2 === 0 ? 0 : PX;
+        pixelLabel(ctx, highlight.label, highlight.x, highlight.y - 48 + bob);
     }
 
     /**
@@ -744,8 +512,8 @@ export class RenderEngine {
         if (!this._minimapCanvas) {
             this._minimapCanvas = document.createElement('canvas');
         }
-        const cw = Math.ceil(mapW + 1);
-        const ch = Math.ceil(mapH + 1);
+        const cw = Math.ceil(mapW);
+        const ch = Math.ceil(mapH);
         if (this._minimapCanvas.width !== cw) this._minimapCanvas.width = cw;
         if (this._minimapCanvas.height !== ch) this._minimapCanvas.height = ch;
         const m = this._minimapCanvas.getContext('2d');
@@ -753,61 +521,63 @@ export class RenderEngine {
 
         for (let r = 0; r < board.rows; r++) {
             for (let c = 0; c < board.cols; c++) {
-                const fogState = board.fog[r][c];
-                if (fogState === FOG.UNSEEN) continue;
-
+                if (board.fog[r][c] === FOG.UNSEEN) continue;
                 const cell = board.grid[r][c];
                 if (board.isOverworld) {
-                    if (cell === CELL.TREE || cell === CELL.CLIFF) m.fillStyle = '#14532d';
-                    else if (cell === CELL.WATER) m.fillStyle = '#2563eb';
-                    else if (cell === CELL.BRIDGE) m.fillStyle = '#d97706';
-                    else if (cell === CELL.DIRT_PATH) m.fillStyle = '#a16207';
-                    else if (cell === CELL.STONE_PLAZA) m.fillStyle = '#78716c';
-                    else m.fillStyle = '#22c55e';
+                    if (cell === CELL.TREE || cell === CELL.CLIFF) m.fillStyle = MM.tree;
+                    else if (cell === CELL.WATER) m.fillStyle = MM.water;
+                    else if (cell === CELL.BRIDGE) m.fillStyle = MM.bridge;
+                    else if (cell === CELL.DIRT_PATH) m.fillStyle = MM.dirt;
+                    else if (cell === CELL.STONE_PLAZA) m.fillStyle = MM.plaza;
+                    else m.fillStyle = MM.grass;
                 } else {
                     if (cell === CELL.WALL || cell === CELL.VOID) continue;
-                    if (cell === CELL.STAIRS) m.fillStyle = '#4ade80';
-                    else if (cell === CELL.CORRIDOR) m.fillStyle = '#475569';
-                    else m.fillStyle = '#64748b';
+                    if (cell === CELL.STAIRS) m.fillStyle = MM.stairs;
+                    else if (cell === CELL.CORRIDOR) m.fillStyle = MM.corridor;
+                    else m.fillStyle = MM.floor;
                 }
-
-                m.fillRect(c * scale, r * scale, scale + 0.4, scale + 0.4);
+                m.fillRect(c * scale, r * scale, scale, scale);
             }
         }
     }
 
     /**
-     * Dibuja un Minimapa Táctico en la esquina inferior derecha para orientarse en el Bosque 4x y Mazmorras.
+     * Minimapa en la esquina inferior derecha: panel azul noche con borde pixelado.
      */
     _drawMinimap(ctx, width, height, board, player, companions = [], monsters = [], elapsed = 0) {
-        const scale = board.isOverworld ? 1.85 : 4.2;
+        const scale = board.isOverworld ? 2 : 4;
         const mapW = board.cols * scale;
         const mapH = board.rows * scale;
         const pad = 16;
-        const mx = width - mapW - pad;
-        const my = height - mapH - pad - 24;
+        const mx = Math.round(width - mapW - pad - 8);
+        const my = Math.round(height - mapH - pad - 8);
 
         ctx.save();
 
-        // Marco gótico del minimapa
-        ctx.fillStyle = 'rgba(12, 10, 18, 0.88)';
-        ctx.strokeStyle = '#d4af37';
-        ctx.lineWidth = 2;
-        ctx.fillRect(mx - 6, my - 24, mapW + 12, mapH + 32);
-        ctx.strokeRect(mx - 6, my - 24, mapW + 12, mapH + 32);
+        // Marco: contorno oscuro, borde claro de 2 px y fondo azul noche
+        const title = board.isOverworld ? 'BOSQUE DE LORETOME' : stripEmoji(board.zoneName || 'MAZMORRA').replace(/\s*\(.*\)\s*$/, '').toUpperCase();
+        // El marco se ensancha hacia la izquierda si el título no cabe (8 px por carácter)
+        const fw = Math.max(mapW + 16, title.length * 8 + 16);
+        const fx = mx + mapW + 8 - fw;
+        const fy = my - 24;
+        const fh = mapH + 32;
+        ctx.fillStyle = '#101010';
+        ctx.fillRect(fx - 2, fy - 2, fw + 4, fh + 4);
+        ctx.fillStyle = '#f8f8f8';
+        ctx.fillRect(fx, fy, fw, fh);
+        ctx.fillStyle = '#181838';
+        ctx.fillRect(fx + 2, fy + 2, fw - 4, fh - 4);
+        ctx.fillStyle = '#101020';
+        ctx.fillRect(mx - 2, my - 2, mapW + 4, mapH + 4);
 
-        // Título de la Zona en la cabecera del minimapa
-        ctx.font = 'bold 10.5px "Cinzel", Georgia, serif';
-        ctx.fillStyle = '#facc15';
+        // Título de la zona
+        ctx.font = `8px ${PIXEL_FONT}`;
         ctx.textAlign = 'center';
-        ctx.fillText(
-            board.isOverworld ? '🌲 BOSQUE DE LORETOME (MAPA 4X)' : `🏰 ${board.zoneName || 'MAZMORRA'}`,
-            mx + mapW * 0.5,
-            my - 10
-        );
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#f8f8f8';
+        ctx.fillText(title, Math.round(fx + fw / 2), fy + 12);
 
-        // Celdas del minimapa: se pintan en un canvas offscreen y solo se repintan
-        // al cambiar de tablero o cada 0.25 s (la niebla avanza lentamente)
+        // Terreno cacheado (se repinta al cambiar de tablero o cada 0.25 s)
         if (
             this._minimapBoard !== board ||
             this._minimapScale !== scale ||
@@ -820,70 +590,41 @@ export class RenderEngine {
             this._redrawMinimapTerrain(board, scale, mapW, mapH);
         }
         if (this._minimapCanvas) {
+            ctx.imageSmoothingEnabled = false;
             ctx.drawImage(this._minimapCanvas, mx, my);
         }
 
-        // Marcar los 6 NPCs de Misiones Secundarias en el Bosque
-        if (Array.isArray(board.npcs)) {
-            for (const npc of board.npcs) {
-                const nx = mx + (npc.x / TILE) * scale;
-                const ny = my + (npc.y / TILE) * scale;
-                ctx.fillStyle = '#fde047';
-                ctx.fillRect(nx - 2.2, ny - 2.2, 4.4, 4.4);
-            }
-        }
+        const dot = (wx, wy, size, color) => {
+            ctx.fillStyle = color;
+            ctx.fillRect(Math.round(mx + (wx / TILE) * scale - size / 2), Math.round(my + (wy / TILE) * scale - size / 2), size, size);
+        };
 
-        // Marcar los 4 Portales de Mazmorra en el Bosque
+        if (Array.isArray(board.npcs)) {
+            for (const npc of board.npcs) dot(npc.x, npc.y, 4, '#f8c830');
+        }
         if (Array.isArray(board.portals)) {
             for (const p of board.portals) {
-                const px = mx + (p.x / TILE) * scale;
-                const py = my + (p.y / TILE) * scale;
-                ctx.fillStyle = p.themeColor || '#ef4444';
-                ctx.fillRect(px - 3.5, py - 3.5, 7, 7);
-                ctx.strokeStyle = p.requiresAllHeroes ? '#facc15' : '#ffffff';
-                ctx.lineWidth = p.requiresAllHeroes ? 1.6 : 1;
-                ctx.strokeRect(px - 3.5, py - 3.5, 7, 7);
+                dot(p.x, p.y, 8, '#101010');
+                dot(p.x, p.y, 6, p.requiresAllHeroes ? '#f8c830' : '#f8f8f8');
+                dot(p.x, p.y, 2, '#101010');
             }
         }
-
-        // Marcar la Escalera de Salida en Mazmorras
         if (board.exitStairs) {
-            const sx = mx + (board.exitStairs.x / TILE) * scale;
-            const sy = my + (board.exitStairs.y / TILE) * scale;
-            ctx.fillStyle = '#4ade80';
-            ctx.fillRect(sx - 3.5, sy - 3.5, 7, 7);
+            dot(board.exitStairs.x, board.exitStairs.y, 6, '#98d868');
         }
-
-        // Enemigos visibles (puntos rojos)
         for (const m of monsters) {
             if (m.dead) continue;
             const mc = Math.floor(m.x / TILE);
             const mr = Math.floor(m.y / TILE);
-            if ((board.fog[mr]?.[mc] ?? FOG.UNSEEN) === FOG.VISIBLE) {
-                ctx.fillStyle = m.isBoss ? '#f43f5e' : '#ef4444';
-                ctx.fillRect(mx + (m.x / TILE) * scale - 1.5, my + (m.y / TILE) * scale - 1.5, 3, 3);
-            }
+            if ((board.fog[mr]?.[mc] ?? FOG.UNSEEN) === FOG.VISIBLE) dot(m.x, m.y, m.isBoss ? 4 : 2, '#d83828');
         }
-
-        // Compañeros IA (puntos celestes)
         for (const ally of companions) {
             if (!ally || ally.dead) continue;
-            ctx.fillStyle = '#38bdf8';
-            ctx.fillRect(mx + (ally.x / TILE) * scale - 2, my + (ally.y / TILE) * scale - 2, 4, 4);
+            dot(ally.x, ally.y, 4, '#88b8f8');
         }
-
-        // Jugador Líder (punto dorado pulsante)
-        if (player && !player.dead) {
-            const px = mx + (player.x / TILE) * scale;
-            const py = my + (player.y / TILE) * scale;
-            const rPulse = 3.2 + Math.sin(elapsed * 7) * 0.8;
-            ctx.fillStyle = '#facc15';
-            ctx.beginPath();
-            ctx.arc(px, py, rPulse, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1;
-            ctx.stroke();
+        if (player && !player.dead && Math.floor(elapsed * 4) % 2 === 0) {
+            dot(player.x, player.y, 6, '#101010');
+            dot(player.x, player.y, 4, '#f8f088');
         }
 
         ctx.restore();

@@ -65,7 +65,7 @@ export class Monster {
         this.potionChance = this.isSubBoss ? 1.0 : template.potionChance;
         this.colors = { ...template.colors };
         if (this.isSubBoss) {
-            this.colors.baseRim = '#f59e0b';
+            this.colors.baseRim = '#f8a830';
         }
         this.voice = { ...template.voice };
 
@@ -344,7 +344,7 @@ export class Monster {
             y: this.y,
             z: 16,
             radius,
-            color: '#ef4444'
+            color: '#d83828'
         });
         eventBus.emit(EVENTS.CAMERA_SHAKE, { intensity: 11, duration: 0.32 });
         eventBus.emit(EVENTS.BUBBLE_SHOW, {
@@ -460,7 +460,7 @@ export class Monster {
             angle: this.attackAngle,
             arc: Math.PI * 0.65,
             radius: this.attackRange,
-            color: this.isBoss ? '#ef4444' : '#fb923c'
+            color: this.isBoss ? '#d83828' : '#f8a830'
         });
 
         // Dañar a cualquier héroe del grupo alcanzado por el barrido del monstruo
@@ -531,7 +531,7 @@ export class Monster {
             y: this.y,
             z: this.z + 16,
             count: isCrit ? 18 : 10,
-            color: this.type === 'skeleton' ? '#e2e8f0' : '#dc2626'
+            color: this.type === 'skeleton' ? '#e2e8f0' : '#d83828'
         });
 
         eventBus.emit(EVENTS.FLOATING_TEXT, {
@@ -539,7 +539,7 @@ export class Monster {
             y: this.y,
             z: this.z + 38,
             text: isCrit ? `¡${actualAmount} CRIT!` : `-${actualAmount}`,
-            color: isCrit ? '#facc15' : '#f8fafc'
+            color: isCrit ? '#f8c830' : '#f8f8f8'
         });
 
         if (this.hp <= 0) {

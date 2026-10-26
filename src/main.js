@@ -38,6 +38,7 @@ import { BubbleManager } from './ui/BubbleManager.js';
 import { ShopModal } from './ui/ShopModal.js';
 import { SaveModal } from './ui/SaveModal.js';
 import { QuestsModal } from './ui/QuestsModal.js';
+import { ico } from './ui/icons.js';
 
 class HeroQuestApp {
     constructor() {
@@ -115,7 +116,7 @@ class HeroQuestApp {
     }
 
     /**
-     * Construye las 4 tarjetas interactivas de selección de clase con retratos realistas de alta definición.
+     * Construye las 4 tarjetas de selección de héroe (retrato pixel-art y atributos).
      */
     _buildHeroSelectionModal() {
         const gridEl = document.getElementById('hero-selection-grid');
@@ -126,35 +127,32 @@ class HeroQuestApp {
         for (const hero of HERO_LIST) {
             const card = document.createElement('div');
             card.className = 'hero-select-card';
-            const portraitSrc = hero.portrait || `./assets/heroes/${hero.id}.jpg`;
+            const portraitSrc = hero.portrait || `./assets/portraits/${hero.id}.png`;
+            const bar = (label, icon, value, max) => `
+                <div class="stat-row" title="${label}: ${value}">
+                    ${ico(icon)}
+                    <span class="stat-label">${label}</span>
+                    <span class="stat-bar"><span style="width:${Math.min(100, Math.round((value / max) * 100))}%"></span></span>
+                    <strong>${value}</strong>
+                </div>`;
             card.innerHTML = `
-                <span class="card-stud stud-tl">◆</span>
-                <span class="card-stud stud-tr">◆</span>
-                <span class="card-stud stud-bl">◆</span>
-                <span class="card-stud stud-br">◆</span>
                 <div class="hero-card-portrait-wrap">
-                    <img src="${portraitSrc}" alt="${hero.name}" class="hero-card-portrait-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
-                    <canvas class="hero-card-canvas" width="160" height="160" style="display:none;"></canvas>
-                    <div class="hero-card-portrait-overlay"></div>
+                    <img src="${portraitSrc}" alt="${hero.name}" class="hero-card-portrait-img pixelated" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                    <canvas class="hero-card-canvas pixelated" width="64" height="64" style="display:none;"></canvas>
                 </div>
-                <div class="hero-card-header-plaque">
-                    <span class="hero-card-bracket">✦</span>
-                    <h3 class="hero-card-name">${hero.name}</h3>
-                    <span class="hero-card-bracket">✦</span>
-                </div>
+                <h3 class="hero-card-name">${hero.name.toUpperCase()}</h3>
                 <span class="hero-card-title">${hero.title}</span>
-                <p class="hero-card-desc">${hero.description}</p>
                 <div class="hero-card-stats">
-                    <div class="stat-box"><span>❤️ VIDA</span><strong>${hero.stats.maxHp}</strong></div>
-                    <div class="stat-box"><span>⚡ STAMINA</span><strong>${hero.stats.maxStamina}</strong></div>
-                    <div class="stat-box"><span>⚔️ ATAQUE</span><strong>${hero.stats.attackDamage}</strong></div>
-                    <div class="stat-box"><span>🛡️ DEFENSA</span><strong>${hero.stats.defense}</strong></div>
+                    ${bar('VIDA', 'heart_full', hero.stats.maxHp, 160)}
+                    ${bar('ENERGÍA', 'bolt', hero.stats.maxStamina, 160)}
+                    ${bar('ATAQUE', 'sword', hero.stats.attackDamage, 34)}
+                    ${bar('DEFENSA', 'shield', hero.stats.defense, 6)}
                 </div>
                 <div class="hero-card-skill">
-                    <strong class="skill-name">⚔️ ${hero.skill.name}</strong>
+                    <strong class="skill-name">${hero.skill.name}</strong>
                     <span class="skill-desc">${hero.skill.description}</span>
                 </div>
-                <button class="hq-btn hq-btn-primary hero-card-action-btn">⚔️ ELEGIR ${hero.name.toUpperCase()} ⚔️</button>
+                <button class="hq-btn hq-btn-primary hero-card-action-btn">ELEGIR</button>
             `;
 
             const portraitCanvas = card.querySelector('canvas');
@@ -262,18 +260,16 @@ class HeroQuestApp {
         const leader = statusList.find((h) => h.status === 'leader');
 
         boxEl.innerHTML = `
-            <h4>🛡️ Estado Inicial de los 4 Campeones — Comienzas en Solitario (1/4)</h4>
-            <p style="font-size:0.86rem; margin-bottom:6px;">
-                Has escapado de la emboscada como <strong>${leader?.name || 'Héroe'}</strong>. Para romper el <strong>Sello de los Cuatro Campeones</strong> del <em>Santuario Final de Zargon</em>, rescata uno a uno a tus 3 compañeros cautivos:
-            </p>
-            <ul style="font-size:0.85rem; line-height:1.45;">
+            <h4>Tus compañeros</h4>
+            <p>Escapaste de la emboscada como <b>${leader?.name || 'héroe'}</b>. Los demás siguen presos:</p>
+            <ul>
                 ${captives
                     .map(
                         (c) =>
-                            `<li><strong>${c.name} (${c.title}):</strong> ${
+                            `<li><b>${c.name}</b> — ${
                                 c.status === 'rescued'
-                                    ? '<span style="color:#15803d; font-weight:700;">¡Ya Rescatado!</span>'
-                                    : `Cautivo en Jaula Rúnica dentro de <strong>${c.dungeonName}</strong>`
+                                    ? '<span class="text-green">libre</span>'
+                                    : `en ${c.dungeonName}`
                             }</li>`
                     )
                     .join('')}
@@ -352,12 +348,12 @@ class HeroQuestApp {
         const disc = this.board.rooms.filter((r) => r.discovered).length;
         const partyCount = 1 + this.companions.length;
         summaryEl.innerHTML = `
-            <div>Líder: <strong>${this.player.name} (${Math.ceil(this.player.hp)}/${this.player.maxHp} ❤️)</strong></div>
-            <div>Héroes Reunidos: <strong style="color:${partyCount >= 4 ? '#4ade80' : '#fef08a'};">👥 ${partyCount} / 4 (Reto Final)</strong></div>
-            <div>Zona Actual: <strong style="color:#86efac;">${this.board.zoneName || 'Mazmorra'}</strong></div>
-            <div>Tesoro Actual: <strong style="color:#facc15;">🪙 ${this.player.gold} Oro</strong></div>
-            <div>Zonas Descubiertas: <strong>🚪 ${disc} / ${this.board.rooms.length}</strong></div>
-            <div>Nivel de Equipo: <strong>Arma Nv.${this.player.weaponLevel} / Armadura Nv.${this.player.armorLevel}</strong></div>
+            <div>${ico('heart_full')} <span>${this.player.name}</span><strong>${Math.ceil(this.player.hp)}/${this.player.maxHp}</strong></div>
+            <div>${ico('party')} <span>Grupo</span><strong>${partyCount} / 4</strong></div>
+            <div>${ico('map')} <span>Zona</span><strong>${String(this.board.zoneName || 'Mazmorra').replace(/\s*\(.*\)\s*$/, '')}</strong></div>
+            <div>${ico('coin')} <span>Oro</span><strong>${this.player.gold}</strong></div>
+            <div>${ico('door')} <span>Salas</span><strong>${disc} / ${this.board.rooms.length}</strong></div>
+            <div>${ico('sword')} <span>Equipo</span><strong>${this.player.weaponLevel} / ${this.player.armorLevel}</strong></div>
         `;
     }
 
@@ -396,14 +392,14 @@ class HeroQuestApp {
                 y: campfire ? campfire.centerY : this.player.y,
                 z: 20,
                 count: 28,
-                color: '#facc15'
+                color: '#f8c830'
             });
             eventBus.emit(EVENTS.FLOATING_TEXT, {
                 x: this.player.x,
                 y: this.player.y,
                 z: 48,
-                text: '🔥 ¡GRUPO RESTAURADO EN LA HOGUERA!',
-                color: '#4ade80',
+                text: '¡GRUPO RESTAURADO EN LA HOGUERA!',
+                color: '#a0f070',
                 size: 16
             });
             eventBus.emit(EVENTS.DIALOG_SHOW, {
@@ -438,7 +434,7 @@ class HeroQuestApp {
                     y: sp.y,
                     z: 18,
                     count: 18,
-                    color: '#c084fc'
+                    color: '#c890f0'
                 });
             }
         });
@@ -606,8 +602,8 @@ class HeroQuestApp {
                 x: this.player.x,
                 y: this.player.y,
                 z: this.player.z + 44,
-                text: '💾 PARTIDA GUARDADA [F5]',
-                color: '#34d399',
+                text: 'PARTIDA GUARDADA [F5]',
+                color: '#a0f070',
                 size: 16
             });
         });
@@ -662,14 +658,14 @@ class HeroQuestApp {
             y,
             z: 24,
             count: 34,
-            color: '#4ade80'
+            color: '#a0f070'
         });
         eventBus.emit(EVENTS.FLOATING_TEXT, {
             x,
             y,
             z: 52,
-            text: `🎉 ¡${newAlly.name.toUpperCase()} RESCATADO (${partyCount}/4)!`,
-            color: '#4ade80',
+            text: `¡${newAlly.name.toUpperCase()} RESCATADO (${partyCount}/4)!`,
+            color: '#a0f070',
             size: 16
         });
 
@@ -678,7 +674,7 @@ class HeroQuestApp {
             speakerId: heroId,
             speakerName: `${newAlly.name} — ${newAlly.title}`,
             title: allRescued
-                ? '🔓 ¡4/4 HÉROES REUNIDOS! RETO FINAL DESBLOQUEADO'
+                ? '¡4/4 HÉROES REUNIDOS! RETO FINAL DESBLOQUEADO'
                 : `Compañero Rescatado (${partyCount}/4 Héroes en el Grupo)`,
             text: allRescued
                 ? `«¡Gracias por romper mis cadenas, ${this.player.name}! ¡Los 4 Campeones de Loretome estamos por fin reunidos! El Sello del Santuario Final de Zargon (en la Ciénaga Suroeste del Bosque) se ha roto: ¡vayamos juntos a por la victoria final!»`
@@ -802,14 +798,14 @@ class HeroQuestApp {
                     y: this.player.y,
                     z: 20,
                     count: 24,
-                    color: '#ef4444'
+                    color: '#d83828'
                 });
                 eventBus.emit(EVENTS.FLOATING_TEXT, {
                     x: this.player.x,
                     y: this.player.y,
                     z: 48,
-                    text: `🔒 SELLO DE LOS 4 HÉROES (${partyCount}/4)`,
-                    color: '#f87171',
+                    text: `SELLO DE LOS 4 HÉROES (${partyCount}/4)`,
+                    color: '#f87858',
                     size: 16
                 });
             }
@@ -900,14 +896,14 @@ class HeroQuestApp {
                 y: this.player.y,
                 z: 18,
                 count: 22,
-                color: this.board.isOverworld ? '#4ade80' : '#facc15'
+                color: this.board.isOverworld ? '#a0f070' : '#f8c830'
             });
             eventBus.emit(EVENTS.FLOATING_TEXT, {
                 x: this.player.x,
                 y: this.player.y,
                 z: 48,
-                text: this.board.isOverworld ? '🌲 BOSQUE REAL DE LORETOME (MAPA 4X)' : `🏰 ${this.board.zoneName.toUpperCase()}`,
-                color: this.board.isOverworld ? '#86efac' : '#fde047',
+                text: this.board.isOverworld ? 'BOSQUE REAL DE LORETOME (MAPA 4X)' : `${this.board.zoneName.toUpperCase()}`,
+                color: this.board.isOverworld ? '#a0f070' : '#f8c830',
                 size: 16
             });
 
@@ -1192,8 +1188,8 @@ class HeroQuestApp {
             x: this.player.x,
             y: this.player.y,
             z: this.player.z + 45,
-            text: '📂 PARTIDA CARGADA',
-            color: '#facc15',
+            text: 'PARTIDA CARGADA',
+            color: '#f8c830',
             size: 16
         });
     }
@@ -1241,14 +1237,14 @@ class HeroQuestApp {
 
         if (titleEl) {
             if (!isVictory) {
-                titleEl.textContent = 'HAS CAÍDO EN COMBATE';
-                titleEl.style.color = '#ef4444';
+                titleEl.textContent = 'HAS CAÍDO';
+                titleEl.style.color = '#f87858';
             } else if (isFinalDungeon) {
-                titleEl.textContent = '🏆 ¡RETO FINAL SUPERADO! ¡LORETOME ES LIBRE!';
-                titleEl.style.color = '#4ade80';
+                titleEl.textContent = '¡LORETOME ES LIBRE!';
+                titleEl.style.color = '#a0f070';
             } else {
-                titleEl.textContent = `¡${(this.board?.zoneName || 'MAZMORRA').toUpperCase()} CONQUISTADA!`;
-                titleEl.style.color = '#facc15';
+                titleEl.textContent = '¡MAZMORRA SUPERADA!';
+                titleEl.style.color = '#f8c830';
             }
         }
 
@@ -1260,19 +1256,17 @@ class HeroQuestApp {
             } else {
                 msgEl.textContent =
                     partyCount >= 4
-                        ? '¡Has conquistado este bastión y los 4 Campeones de Loretome están por fin reunidos (4/4)! Sal al Bosque y dirígete al Suroeste para cruzar el portal del Santuario Final de Zargon.'
-                        : `¡Has derrotado al señor de esta mazmorra (+200 monedas de oro)! Tu grupo cuenta ahora con ${partyCount}/4 Héroes. Regresa al Bosque Exterior para rescatar a los compañeros restantes y completar Misiones Secundarias.`;
+                        ? 'Los cuatro héroes estáis juntos. Sal al bosque y busca el santuario de Zargon, al suroeste.'
+                        : `Has vencido al señor de esta mazmorra (+200 de oro). Sois ${partyCount} de 4. Vuelve al bosque y sigue buscando a los demás.`;
             }
         }
 
         if (statsEl && this.player) {
             statsEl.innerHTML = `
-                <div>Campeón Líder: <strong>${this.player.name}</strong></div>
-                <div>Héroes Reunidos: <strong style="color:#4ade80;">👥 ${partyCount} / 4</strong></div>
-                <div>Oro Total: <strong style="color:#facc15;">🪙 ${this.player.gold}</strong></div>
-                <div>Enemigos Abatidos: <strong>⚔️ ${this.player.kills}</strong></div>
-                <div>Salas Descubiertas: <strong>🚪 ${discoveredRooms} / ${this.board.rooms.length}</strong></div>
-                <div>Nivel de Equipo: <strong>Arma Nv.${this.player.weaponLevel} / Armadura Nv.${this.player.armorLevel}</strong></div>
+                <div>${ico('party')} <span>Grupo</span><strong>${partyCount} / 4</strong></div>
+                <div>${ico('coin')} <span>Oro</span><strong>${this.player.gold}</strong></div>
+                <div>${ico('skull')} <span>Enemigos</span><strong>${this.player.kills}</strong></div>
+                <div>${ico('door')} <span>Salas</span><strong>${discoveredRooms} / ${this.board.rooms.length}</strong></div>
             `;
         }
 
@@ -1315,7 +1309,7 @@ class HeroQuestApp {
             // 3. Actualizar Línea de Visión y Niebla de Guerra
             RaycasterLOS.updateFogOfWar(this.board, this.player.x, this.player.y);
 
-            // 4. Actualizar Trampas y buscar objeto interactuable más cercano [E / 0]
+            // 4. Actualizar Trampas y buscar objeto interactuable más cercano [E]
             this.interaction.updateTraps(dt, this.board, [this.player, ...this.companions], this.monsters);
             this.interaction.findNearestInteractable(this.player, this.board);
 

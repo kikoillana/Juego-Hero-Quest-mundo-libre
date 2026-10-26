@@ -6,6 +6,8 @@
 
 import { GRAVITY, EVENTS } from '../config/constants.js';
 import { eventBus } from '../core/EventBus.js';
+import { PX, snap } from '../render/Sprites.js';
+import { PIXEL_FONT, stripEmoji } from '../render/envDraw.js';
 
 /**
  * Elimina el elemento i en O(1) intercambiándolo con el último (el orden no importa).
@@ -182,101 +184,100 @@ export class ParticleSystem {
     }
 
     /**
-     * Dibuja ondas de choque, arcos de corte y partículas 2.5D en el espacio del mundo.
+     * Dibuja ondas de choque, arcos de corte y partículas como píxeles cuadrados (estética 16 bits).
      * @param {CanvasRenderingContext2D} ctx
      */
     drawWorldEffects(ctx) {
         ctx.save();
 
-        // 1. Ondas de choque (elipses proyectadas en perspectiva 3/4)
+        // 1. Ondas de choque: anillo de píxeles en perspectiva 3/4 que se expande
         for (const w of this.shockwaves) {
             const progress = 1 - w.life / w.maxLife;
-            const currentRadius = w.maxRadius * (0.2 + 0.8 * progress);
-            const alpha = Math.max(0, w.life / w.maxLife);
-
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            ctx.strokeStyle = w.color;
-            ctx.lineWidth = 4 * (1 - progress * 0.5);
-            ctx.beginPath();
-            ctx.ellipse(w.x, w.y - w.z * 0.3, currentRadius, currentRadius * 0.72, 0, 0, Math.PI * 2);
-            ctx.stroke();
-
+            const radius = w.maxRadius * (0.2 + 0.8 * progress);
+            const size = progress < 0.6 ? PX * 2 : PX;
+            const steps = Math.max(12, Math.floor(radius / 5));
+            const cy = w.y - w.z * 0.3;
+            ctx.globalAlpha = progress > 0.75 ? 0.5 : 1;
             ctx.fillStyle = w.color;
-            ctx.globalAlpha = alpha * 0.22;
-            ctx.fill();
-            ctx.restore();
+            for (let k = 0; k < steps; k++) {
+                const a = (k / steps) * Math.PI * 2;
+                ctx.fillRect(snap(w.x + Math.cos(a) * radius) - size / 2, snap(cy + Math.sin(a) * radius * 0.72) - size / 2, size, size);
+            }
+            ctx.fillStyle = '#f8f8f8';
+            for (let k = 0; k < steps; k += 3) {
+                const a = (k / steps) * Math.PI * 2 + 0.1;
+                ctx.fillRect(snap(w.x + Math.cos(a) * radius), snap(cy + Math.sin(a) * radius * 0.72), PX, PX);
+            }
         }
 
-        // 2. Arcos de corte (Slash)
+        // 2. Arcos de corte: media luna de píxeles (color exterior + filo blanco interior)
         for (const s of this.slashes) {
-            const alpha = Math.max(0, s.life / s.maxLife);
-            const progress = 1 - alpha;
+            const t = Math.max(0, s.life / s.maxLife);
             const startAng = s.angle - s.arc * 0.5;
-            const endAng = s.angle + s.arc * 0.5;
-            const drawY = s.y - s.z;
-
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            ctx.strokeStyle = s.color;
-            ctx.lineWidth = 10 * alpha;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.arc(s.x, drawY, s.radius * (0.88 + progress * 0.14), startAng, endAng);
-            ctx.stroke();
-
-            // Filo blanco brillante interno
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 3.5 * alpha;
-            ctx.beginPath();
-            ctx.arc(s.x, drawY, s.radius * (0.92 + progress * 0.14), startAng + 0.08, endAng - 0.08);
-            ctx.stroke();
-            ctx.restore();
+            const cy = s.y - s.z;
+            const r = s.radius * (0.9 + (1 - t) * 0.12);
+            const steps = Math.max(8, Math.floor((s.arc * r) / 6));
+            ctx.globalAlpha = t > 0.4 ? 1 : 0.5;
+            for (let k = 0; k <= steps; k++) {
+                const a = startAng + (k / steps) * s.arc;
+                // grosor máximo en el centro del arco
+                const mid = 1 - Math.abs(k / steps - 0.5) * 2;
+                const thick = mid > 0.4 ? 2 : 1;
+                const cx = Math.cos(a);
+                const sy = Math.sin(a);
+                ctx.fillStyle = s.color;
+                ctx.fillRect(snap(s.x + cx * r) - PX, snap(cy + sy * r) - PX, PX * thick, PX * thick);
+                if (mid > 0.2) {
+                    ctx.fillStyle = '#f8f8f8';
+                    ctx.fillRect(snap(s.x + cx * (r - PX * 2)) - PX, snap(cy + sy * (r - PX * 2)) - PX, PX, PX);
+                }
+            }
         }
 
-        // 3. Partículas 2.5D con su sombra (sin save/restore por partícula: el save exterior basta)
-        const TAU = Math.PI * 2;
+        // 3. Partículas: cuadrados de 1-2 píxeles artísticos con sombra de 1 píxel
         for (const p of this.particles) {
-            const alpha = Math.max(0, p.life / p.maxLife);
-            ctx.globalAlpha = alpha * 0.35;
+            const t = Math.max(0, p.life / p.maxLife);
+            const size = p.size > 3.6 && t > 0.4 ? PX * 2 : PX;
+            const px = snap(p.x);
+            ctx.globalAlpha = 0.3;
             ctx.fillStyle = '#000000';
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size * 0.75, 0, TAU);
-            ctx.fill();
-
-            ctx.globalAlpha = alpha;
+            ctx.fillRect(px, snap(p.y), PX, PX);
+            ctx.globalAlpha = t > 0.25 ? 1 : 0.5;
             ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y - p.z, p.size, 0, TAU);
-            ctx.fill();
+            ctx.fillRect(px - size / 2, snap(p.y - p.z) - size / 2, size, size);
         }
 
         ctx.restore();
     }
 
     /**
-     * Dibuja los textos flotantes por encima de las entidades y muros.
+     * Textos flotantes en fuente pixel con contorno oscuro de 1 píxel.
      * @param {CanvasRenderingContext2D} ctx
      */
     drawFloatingTexts(ctx) {
         if (this.floatingTexts.length === 0) return;
 
         ctx.save();
-        ctx.font = 'bold 13px "Cinzel", Georgia, serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
         for (const ft of this.floatingTexts) {
-            const alpha = Math.min(1, (ft.life / ft.maxLife) * 1.4);
-            const drawY = ft.y - ft.z;
-
-            ctx.globalAlpha = alpha;
-            ctx.lineWidth = 3.5;
-            ctx.strokeStyle = '#09080b';
-            ctx.strokeText(ft.text, ft.x, drawY);
-
+            const text = stripEmoji(ft.text);
+            if (!text) continue;
+            const size = text.length <= 5 ? 12 : 6;
+            const o = size === 12 ? 3 : 1.5;
+            const x = snap(ft.x);
+            const y = snap(ft.y - ft.z);
+            ctx.font = `${size}px ${PIXEL_FONT}`;
+            ctx.globalAlpha = ft.life / ft.maxLife > 0.25 ? 1 : 0.5;
+            ctx.fillStyle = '#201818';
+            ctx.fillText(text, x - o, y);
+            ctx.fillText(text, x + o, y);
+            ctx.fillText(text, x, y - o);
+            ctx.fillText(text, x, y + o);
+            ctx.fillText(text, x + o, y + o);
             ctx.fillStyle = ft.color;
-            ctx.fillText(ft.text, ft.x, drawY);
+            ctx.fillText(text, x, y);
         }
 
         ctx.restore();

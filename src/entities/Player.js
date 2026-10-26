@@ -206,7 +206,7 @@ export class Player {
                     y: this.y,
                     z: 16,
                     count: 8,
-                    color: '#facc15'
+                    color: '#f8c830'
                 });
             }
         }
@@ -232,8 +232,8 @@ export class Player {
                         x: this.x,
                         y: this.y,
                         z: 42,
-                        text: '⚠️ ¡GUARDIA ROTA!',
-                        color: '#ef4444'
+                        text: '¡GUARDIA ROTA!',
+                        color: '#d83828'
                     });
                 }
             }
@@ -486,7 +486,7 @@ export class Player {
                     y: this.y,
                     z: 42,
                     text: '¡Sin Stamina!',
-                    color: '#f87171'
+                    color: '#f87858'
                 });
             }
             return false;
@@ -558,8 +558,8 @@ export class Player {
                 x: this.x,
                 y: this.y,
                 z: 44,
-                text: '🔒 Completa la Misión III de la Archimaga Lyra [J]',
-                color: '#c084fc'
+                text: 'Completa la Misión III de la Archimaga Lyra [J]',
+                color: '#c890f0'
             });
             return false;
         }
@@ -572,7 +572,7 @@ export class Player {
                 y: this.y,
                 z: 42,
                 text: '¡Sin Stamina (25)!',
-                color: '#f87171'
+                color: '#f87858'
             });
             return false;
         }
@@ -597,7 +597,7 @@ export class Player {
             y: this.y,
             z: this.z + 18,
             radius,
-            color: '#38bdf8'
+            color: '#88b8f8'
         });
 
         eventBus.emit(EVENTS.MAGIC_FX, {
@@ -605,14 +605,14 @@ export class Player {
             y: this.y,
             z: this.z + 28,
             radius: radius * 0.65,
-            color: '#facc15'
+            color: '#f8c830'
         });
 
         eventBus.emit(EVENTS.CAMERA_SHAKE, { intensity: 10, duration: 0.28 });
 
         eventBus.emit(EVENTS.BUBBLE_SHOW, {
             entity: this,
-            text: '⚡ ¡TEMPESTAD DE LORETOME!',
+            text: '¡TEMPESTAD DE LORETOME!',
             duration: 2.2,
             style: 'skill'
         });
@@ -635,7 +635,7 @@ export class Player {
                     y: monster.y,
                     z: 22,
                     count: 16,
-                    color: '#38bdf8'
+                    color: '#88b8f8'
                 });
             }
         }
@@ -677,14 +677,14 @@ export class Player {
                 y: this.y,
                 z: 45,
                 text: '¡FURIA DE GRUPO (+50% ATQ)!',
-                color: '#f59e0b'
+                color: '#f8a830'
             });
             eventBus.emit(EVENTS.PARTICLE_BURST, {
                 x: this.x,
                 y: this.y,
                 z: 16,
                 count: 18,
-                color: '#f59e0b'
+                color: '#f8a830'
             });
         } else if (slot === 3) {
             if (this.inventory.speedPotions <= 0) {
@@ -700,14 +700,14 @@ export class Player {
                 y: this.y,
                 z: 45,
                 text: '¡VIENTO VELOZ (+35% VEL)!',
-                color: '#38bdf8'
+                color: '#88b8f8'
             });
             eventBus.emit(EVENTS.PARTICLE_BURST, {
                 x: this.x,
                 y: this.y,
                 z: 16,
                 count: 18,
-                color: '#38bdf8'
+                color: '#88b8f8'
             });
         }
 
@@ -720,7 +720,7 @@ export class Player {
             y: this.y,
             z: 40,
             text: msg,
-            color: '#94a3b8'
+            color: '#a8a8a0'
         });
     }
 
@@ -747,14 +747,14 @@ export class Player {
                 y: this.y,
                 z: 45,
                 text: `+${gained || amount} VIDA`,
-                color: '#4ade80'
+                color: '#a0f070'
             });
             eventBus.emit(EVENTS.PARTICLE_BURST, {
                 x: this.x,
                 y: this.y,
                 z: 16,
                 count: 12,
-                color: '#4ade80'
+                color: '#a0f070'
             });
         }
         if (!this.isAI) {
@@ -779,7 +779,7 @@ export class Player {
                 y: this.y,
                 z: this.z + 30,
                 text: '¡ESQUIVADO!',
-                color: '#38bdf8'
+                color: '#88b8f8'
             });
             return;
         }
@@ -817,14 +817,14 @@ export class Player {
                 y: this.y,
                 z: 18,
                 count: 14,
-                color: '#facc15'
+                color: '#f8c830'
             });
             eventBus.emit(EVENTS.FLOATING_TEXT, {
                 x: this.x,
                 y: this.y,
                 z: 44,
-                text: chipDamage > 0 ? `🛡️ BLOQUEO (-${chipDamage})` : '🛡️ ¡BLOQUEO!',
-                color: '#facc15'
+                text: chipDamage > 0 ? `BLOQUEO (-${chipDamage})` : '¡BLOQUEO!',
+                color: '#f8c830'
             });
 
             // Rotura de guardia si el impacto consume toda la energía
@@ -836,15 +836,15 @@ export class Player {
                     x: this.x,
                     y: this.y,
                     z: 56,
-                    text: '⚠️ ¡GUARDIA ROTA!',
-                    color: '#ef4444'
+                    text: '¡GUARDIA ROTA!',
+                    color: '#d83828'
                 });
                 eventBus.emit(EVENTS.PARTICLE_BURST, {
                     x: this.x,
                     y: this.y,
                     z: 22,
                     count: 16,
-                    color: '#ef4444'
+                    color: '#d83828'
                 });
             }
 
@@ -879,7 +879,7 @@ export class Player {
             y: this.y,
             z: 16,
             count: 12,
-            color: '#ef4444'
+            color: '#d83828'
         });
 
         eventBus.emit(EVENTS.FLOATING_TEXT, {
@@ -887,7 +887,7 @@ export class Player {
             y: this.y,
             z: 42,
             text: `-${finalDamage}`,
-            color: '#ef4444'
+            color: '#d83828'
         });
 
         if (this.hp <= 0) {
@@ -955,7 +955,7 @@ export class CompanionHero extends Player {
                     y: this.y,
                     z: 42,
                     text: `¡${this.name} vuelve al combate!`,
-                    color: '#4ade80'
+                    color: '#a0f070'
                 });
                 eventBus.emit(EVENTS.PARTY_UPDATED);
             }
@@ -1169,14 +1169,14 @@ export class CompanionHero extends Player {
                             y: trap.y,
                             z: 10,
                             count: 16,
-                            color: '#facc15'
+                            color: '#f8c830'
                         });
                         eventBus.emit(EVENTS.FLOATING_TEXT, {
                             x: trap.x,
                             y: trap.y,
                             z: 36,
-                            text: `🛠️ ¡Enano desactiva ${trap.name}!`,
-                            color: '#fde047'
+                            text: `¡Enano desactiva ${trap.name}!`,
+                            color: '#f8c830'
                         });
                         eventBus.emit(EVENTS.BUBBLE_SHOW, {
                             entity: this,
@@ -1257,7 +1257,7 @@ export class CompanionHero extends Player {
             angle: this.aimAngle,
             arc: Math.PI * 0.45,
             radius: 44,
-            color: '#38bdf8'
+            color: '#88b8f8'
         });
 
         // Impacto arcano sobre el objetivo y chispas alrededor
@@ -1266,7 +1266,7 @@ export class CompanionHero extends Player {
             y: target.y,
             z: 14,
             radius: 38,
-            color: '#38bdf8'
+            color: '#88b8f8'
         });
 
         const isCrit = Math.random() < this.critChance;

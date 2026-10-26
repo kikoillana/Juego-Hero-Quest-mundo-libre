@@ -6,6 +6,12 @@
 import { TILE, BOARD_COLS, BOARD_ROWS, EVENTS } from '../config/constants.js';
 import { eventBus } from './EventBus.js';
 
+// Niveles de zoom que mantienen un número entero de píxeles de pantalla por píxel artístico
+// (el arte es de 16 px por celda escalado x3: zoom 1 = 3 px, 4/3 = 4 px, 5/3 = 5 px, 2/3 = 2 px).
+const ZOOM_LEVELS = [2 / 3, 1, 4 / 3, 5 / 3];
+const DEFAULT_ZOOM_INDEX = 2;
+const ART_PX = 3;
+
 export class Camera {
     /**
      * @param {number} viewportWidth
@@ -18,10 +24,11 @@ export class Camera {
         this.x = (BOARD_COLS * TILE) / 2;
         this.y = (BOARD_ROWS * TILE) / 2;
 
-        this.zoom = 1.05;
-        this.targetZoom = 1.05;
-        this.minZoom = 0.72;
-        this.maxZoom = 1.45;
+        this.zoomIndex = DEFAULT_ZOOM_INDEX;
+        this.zoom = ZOOM_LEVELS[this.zoomIndex];
+        this.targetZoom = this.zoom;
+        this.minZoom = ZOOM_LEVELS[0];
+        this.maxZoom = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
 
         this.lerpSpeed = 7.5;
 
@@ -80,10 +87,10 @@ export class Camera {
      */
     adjustZoom(wheelDelta) {
         if (wheelDelta === 0) return;
-        this.targetZoom = Math.max(
-            this.minZoom,
-            Math.min(this.maxZoom, this.targetZoom - wheelDelta * 0.08)
-        );
+        // Pasos discretos: el pixel-art solo se ve nítido con escalas enteras
+        const step = wheelDelta > 0 ? -1 : 1;
+        this.zoomIndex = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, this.zoomIndex + step));
+        this.targetZoom = ZOOM_LEVELS[this.zoomIndex];
     }
 
     /**
@@ -93,8 +100,8 @@ export class Camera {
      * @param {{ x: number, y: number }} [mouseScreen]
      */
     update(dt, target, mouseScreen) {
-        // Zoom suavizado
-        this.zoom += (this.targetZoom - this.zoom) * Math.min(1, dt * 10);
+        // Zoom en pasos enteros (sin interpolación para no emborronar el pixel-art)
+        this.zoom = this.targetZoom;
 
         if (target) {
             let desiredX = target.x;
@@ -138,11 +145,13 @@ export class Camera {
      */
     applyTransform(ctx) {
         ctx.save();
-        const centerX = this.viewportWidth * 0.5 + this.shakeOffsetX;
-        const centerY = this.viewportHeight * 0.5 + this.shakeOffsetY;
-        ctx.translate(centerX, centerY);
-        ctx.scale(this.zoom, this.zoom);
-        ctx.translate(-this.x, -this.y);
+        // Ajuste a la rejilla de píxel artístico: evita el "temblor" del pixel-art al desplazar la cámara
+        const camX = Math.round(this.x / ART_PX) * ART_PX;
+        const camY = Math.round(this.y / ART_PX) * ART_PX;
+        const offX = Math.round(this.viewportWidth * 0.5 + this.shakeOffsetX - camX * this.zoom);
+        const offY = Math.round(this.viewportHeight * 0.5 + this.shakeOffsetY - camY * this.zoom);
+        ctx.setTransform(this.zoom, 0, 0, this.zoom, offX, offY);
+        ctx.imageSmoothingEnabled = false;
     }
 
     /**

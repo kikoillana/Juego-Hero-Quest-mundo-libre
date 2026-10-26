@@ -10,6 +10,10 @@ import { EVENTS, ZONE_ID } from '../config/constants.js';
 import { SPECIAL_WEAPONS } from '../config/questsData.js';
 import { eventBus } from '../core/EventBus.js';
 import { PortraitRenderer } from '../render/PortraitRenderer.js';
+import { ico } from './icons.js';
+
+/** Puntos de vida que representa cada corazón del HUD. */
+const HP_PER_HEART = 20;
 
 export class HUDController {
     constructor() {
@@ -19,6 +23,7 @@ export class HUDController {
             heroName: document.getElementById('hud-hero-name'),
             heroTitle: document.getElementById('hud-hero-title'),
             hpFill: document.getElementById('hud-hp-fill'),
+            hearts: document.getElementById('hud-hearts'),
             hpText: document.getElementById('hud-hp-text'),
             staminaFill: document.getElementById('hud-stamina-fill'),
             staminaText: document.getElementById('hud-stamina-text'),
@@ -70,60 +75,63 @@ export class HUDController {
         eventBus.on(EVENTS.ZONE_CHANGED, ({ zoneId, zoneName, isOverworld, discoveredRooms, totalRooms, bossName, bossDefeated }) => {
             this.currentZoneId = zoneId;
             if (this.els.zoneValue) {
-                this.els.zoneValue.textContent = isOverworld ? '🌲 Bosque de Loretome' : `🏰 ${zoneName}`;
+                this.els.zoneValue.textContent = isOverworld ? 'Bosque de Loretome' : String(zoneName || '').replace(/\s*\(.*\)\s*$/, '');
             }
             if (this.els.roomsLabel) {
-                this.els.roomsLabel.textContent = isOverworld ? '🌲 Regiones' : '🚪 Salas';
+                this.els.roomsLabel.textContent = isOverworld ? 'Regiones' : 'Salas';
+                this.els.roomsLabel.parentElement?.setAttribute('title', isOverworld ? 'Regiones descubiertas' : 'Salas descubiertas');
             }
             if (this.els.roomsValue) {
                 this.els.roomsValue.textContent = `${discoveredRooms} / ${totalRooms}`;
             }
             if (this.els.bossLabel) {
-                this.els.bossLabel.textContent = isOverworld ? '🏰 Mazmorras' : '👹 Jefe';
+                this.els.bossLabel.textContent = isOverworld ? 'Mazmorras' : 'Jefe';
+                this.els.bossLabel.parentElement?.setAttribute('title', isOverworld ? 'Mazmorras' : `Jefe: ${bossName || ''}`);
             }
             if (this.els.bossValue) {
                 if (isOverworld) {
-                    this.els.bossValue.textContent = '4 en el Bosque';
+                    this.els.bossValue.textContent = '4 mazmorras';
                     this.els.bossValue.classList.remove('boss-slain');
                 } else {
-                    this.els.bossValue.textContent = bossDefeated ? '¡Abatido!' : (bossName || 'En el Santuario');
+                    this.els.bossValue.textContent = bossDefeated ? 'Derrotado' : 'Vivo';
                     this.els.bossValue.classList.toggle('boss-slain', Boolean(bossDefeated));
                 }
             }
             if (this.els.btnForestExit) {
                 if (isOverworld) {
-                    this.els.btnForestExit.textContent = '🏕️ Ir a Hoguera Central';
-                    this.els.btnForestExit.title = 'Viajar al Campamento Real en el centro del Bosque';
+                    this.els.btnForestExit.innerHTML = ico('fire');
+                    this.els.btnForestExit.title = 'Ir al campamento';
                 } else {
-                    this.els.btnForestExit.textContent = '🌲 Salir al Bosque';
-                    this.els.btnForestExit.title = 'Subir por la Escalera Imperial hacia el Bosque de Loretome';
+                    this.els.btnForestExit.innerHTML = ico('tree');
+                    this.els.btnForestExit.title = 'Salir al bosque';
                 }
             }
         });
 
         eventBus.on(EVENTS.BOSS_DEFEATED, () => {
             if (this.els.bossValue) {
-                this.els.bossValue.textContent = '¡Abatido!';
+                this.els.bossValue.textContent = 'Derrotado';
                 this.els.bossValue.classList.add('boss-slain');
             }
         });
 
         eventBus.on(EVENTS.MUSIC_STATE, ({ playing, inCombat, isOverworld }) => {
             if (this.els.btnMusic) {
-                let label = '🔇 Música: OFF [M]';
+                let label = 'Música: no';
                 if (playing) {
-                    if (inCombat) label = '🎵 Música: Combate [M]';
-                    else if (isOverworld) label = '🎵 Música: Bosque [M]';
-                    else label = '🎵 Música: Mazmorra [M]';
+                    if (inCombat) label = 'Música: combate';
+                    else if (isOverworld) label = 'Música: bosque';
+                    else label = 'Música: mazmorra';
                 }
-                this.els.btnMusic.textContent = label;
+                this.els.btnMusic.title = `${label} (M)`;
                 this.els.btnMusic.classList.toggle('active-toggle', playing);
             }
         });
 
         eventBus.on(EVENTS.VOICE_STATE, ({ enabled }) => {
             if (this.els.btnVoice) {
-                this.els.btnVoice.textContent = enabled ? '🗣️ Gritos: ON [V]' : '🔇 Gritos: OFF [V]';
+                this.els.btnVoice.innerHTML = `${ico(enabled ? 'speaker_on' : 'speaker_off')}<span class="k">V</span>`;
+                this.els.btnVoice.title = enabled ? 'Voces: sí (V)' : 'Voces: no (V)';
                 this.els.btnVoice.classList.toggle('active-toggle', enabled);
             }
         });
@@ -131,7 +139,8 @@ export class HUDController {
         eventBus.on(EVENTS.GAME_STATE_CHANGED, ({ state }) => {
             if (this.els.btnPause) {
                 const isPaused = state === 'PAUSED';
-                this.els.btnPause.textContent = isPaused ? '▶️ Reanudar [P]' : '⏸️ Pausa [P]';
+                this.els.btnPause.innerHTML = `${ico(isPaused ? 'play' : 'pause')}<span class="k">P</span>`;
+                this.els.btnPause.title = isPaused ? 'Continuar (P)' : 'Pausa (P)';
                 this.els.btnPause.classList.toggle('active-toggle', isPaused);
             }
         });
@@ -190,7 +199,7 @@ export class HUDController {
     updatePartyCount(count = 1) {
         if (this.els.partyValue) {
             this.els.partyValue.textContent = `${count} / 4`;
-            this.els.partyValue.style.color = count >= 4 ? '#4ade80' : '#fef08a';
+            this.els.partyValue.style.color = count >= 4 ? '#a0f070' : '';
         }
     }
 
@@ -231,7 +240,7 @@ export class HUDController {
                 // Rehabilitar la imagen por si un fallo de carga previo (onerror en index.html) la ocultó
                 els.portraitImg.style.display = '';
                 if (els.portraitCanvas) els.portraitCanvas.style.display = 'none';
-                els.portraitImg.src = `./assets/heroes/${player.heroId}.jpg`;
+                els.portraitImg.src = `./assets/portraits/${player.heroId}.png`;
             }
             if (els.portraitCanvas) {
                 PortraitRenderer.renderToCanvas(els.portraitCanvas, player.heroId);
@@ -244,10 +253,11 @@ export class HUDController {
         const hpPct = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
         this._setWidth(els.hpFill, `${hpPct.toFixed(1)}%`);
         this._setText(els.hpText, `${Math.ceil(player.hp)} / ${player.maxHp}`);
+        this._renderHearts(player.hp, player.maxHp);
 
         const stamPct = Math.max(0, Math.min(100, (player.stamina / player.maxStamina) * 100));
         this._setWidth(els.staminaFill, `${stamPct.toFixed(1)}%`);
-        this._setText(els.staminaText, `${Math.floor(player.stamina)} / ${player.maxStamina}`);
+        this._setText(els.staminaText, `${Math.floor(player.stamina)}`);
 
         this._setText(els.atkValue, `${player.effectiveDamage}`);
         this._setText(els.defValue, `${player.effectiveDefense}`);
@@ -269,7 +279,7 @@ export class HUDController {
         this._setText(els.skillName, player.skillData.name);
         if (els.skillStatus) {
             const onCd = player.skillCooldownTimer > 0;
-            this._setText(els.skillStatus, onCd ? `${player.skillCooldownTimer.toFixed(1)}s` : 'Lista [Click Der]');
+            this._setText(els.skillStatus, onCd ? `${player.skillCooldownTimer.toFixed(1)}s` : 'Lista');
             this._setClass(els.skillStatus, 'on-cooldown', onCd);
         }
 
@@ -277,11 +287,11 @@ export class HUDController {
             let text;
             let onCd = true;
             if (!player.secondSkillUnlocked) {
-                text = '🔒 Misión [J]';
+                text = 'Bloqueada';
             } else if (player.secondSkillCooldownTimer > 0) {
                 text = `${player.secondSkillCooldownTimer.toFixed(1)}s`;
             } else {
-                text = '⚡ Lista [Tecla F]';
+                text = 'Lista';
                 onCd = false;
             }
             this._setText(els.secondSkillStatus, text);
@@ -289,12 +299,35 @@ export class HUDController {
         }
     }
 
+    /**
+     * Pinta la fila de corazones (1 corazón = HP_PER_HEART puntos; medios corazones).
+     * Solo reconstruye el DOM cuando cambia el número de medios corazones o de contenedores.
+     */
+    _renderHearts(hp, maxHp) {
+        const el = this.els.hearts;
+        if (!el) return;
+        const containers = Math.max(1, Math.ceil(maxHp / HP_PER_HEART));
+        const halves = Math.max(0, Math.ceil((Math.max(0, hp) / HP_PER_HEART) * 2));
+        const key = `${containers}:${halves}`;
+        if (el._heartsKey !== key) {
+            el._heartsKey = key;
+            let html = '';
+            for (let i = 0; i < containers; i++) {
+                const h = halves - i * 2;
+                const name = h >= 2 ? 'heart_full' : h === 1 ? 'heart_half' : 'heart_empty';
+                html += `<img class="heart" src="./assets/ui/${name}.png" alt="" draggable="false" />`;
+            }
+            el.innerHTML = html;
+        }
+        this._setClass(el, 'hearts-low', hp > 0 && hp / maxHp <= 0.25);
+    }
+
     resetWorldCounters(discoveredRooms = 1, totalRooms = 7) {
         if (this.els.roomsValue) {
             this.els.roomsValue.textContent = `${discoveredRooms} / ${totalRooms}`;
         }
         if (this.els.bossValue) {
-            this.els.bossValue.textContent = 'En el Santuario';
+            this.els.bossValue.textContent = 'Vivo';
             this.els.bossValue.classList.remove('boss-slain');
         }
     }

@@ -105,8 +105,8 @@ export const LOOT_TYPE = Object.freeze({
 });
 
 export const PALETTE = Object.freeze({
-    VOID_BG: '#09080b',
-    OVERWORLD_BG: '#0d1f12',
+    VOID_BG: '#101018',
+    OVERWORLD_BG: '#183818',
     CORRIDOR_A: '#2a2629',
     CORRIDOR_B: '#232023',
     WALL_TOP: '#1a171c',
@@ -139,8 +139,8 @@ export const PALETTE = Object.freeze({
     MAGIC_PURPLE: '#c084fc',
     HEAL_GREEN: '#4ade80',
     TORCH_LIGHT: 'rgba(255, 165, 64, 0.24)',
-    FOG_EXPLORED: 'rgba(10, 8, 14, 0.64)',
-    FOG_UNSEEN: '#070609'
+    FOG_EXPLORED: 'rgba(16, 12, 32, 0.6)',
+    FOG_UNSEEN: '#101018'
 });
 
 export const EVENTS = Object.freeze({

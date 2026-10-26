@@ -1,17 +1,29 @@
 /**
  * @fileoverview Objetos de botín (monedas, bolsas de oro y pociones) con rebote físico en el eje Z
  * e imán magnético de recogida hacia el héroe.
- * Capa 3: Depende de constants.js y EventBus.js.
+ * Capa 3: Depende de constants.js, EventBus.js y de los sprites de escenario (envDraw.js).
  */
 
 import { GRAVITY, LOOT_TYPE, EVENTS } from '../config/constants.js';
 import { eventBus } from '../core/EventBus.js';
+import { PX, snap } from '../render/Sprites.js';
+import { envSprite } from '../render/envDraw.js';
+
+/** Fotograma del sprite de botín (assets/sprites/items.png). */
+const LOOT_FRAME = {
+    [LOOT_TYPE.GOLD_COIN]: 'coin0',
+    [LOOT_TYPE.GOLD_POUCH]: 'pouch',
+    [LOOT_TYPE.RUBY_GEM]: 'gem',
+    [LOOT_TYPE.HEAL_POTION]: 'potion_heal',
+    [LOOT_TYPE.STRENGTH_POTION]: 'potion_strength',
+    [LOOT_TYPE.SPEED_POTION]: 'potion_speed'
+};
 
 /** Tabla de pociones recogibles: clave de inventario, texto flotante y color. */
 const POTION_LOOT = {
-    [LOOT_TYPE.HEAL_POTION]: { key: 'healPotions', text: '+1 Poción Curativa [1]', color: '#4ade80' },
-    [LOOT_TYPE.STRENGTH_POTION]: { key: 'strengthPotions', text: '+1 Poción Fuerza [2]', color: '#f59e0b' },
-    [LOOT_TYPE.SPEED_POTION]: { key: 'speedPotions', text: '+1 Poción Velocidad [3]', color: '#38bdf8' }
+    [LOOT_TYPE.HEAL_POTION]: { key: 'healPotions', text: '+1 Poción Curativa [1]', color: '#f87858' },
+    [LOOT_TYPE.STRENGTH_POTION]: { key: 'strengthPotions', text: '+1 Poción Fuerza [2]', color: '#f8a830' },
+    [LOOT_TYPE.SPEED_POTION]: { key: 'speedPotions', text: '+1 Poción Velocidad [3]', color: '#88b8f8' }
 };
 
 export class LootItem {
@@ -136,85 +148,27 @@ export class LootItem {
     }
 
     /**
-     * Dibuja el objeto de botín en proyección 2.5D con sombra proyectada.
+     * Dibuja el objeto de botín como sprite pixel-art con sombra plana y rebote en Z.
      * @param {CanvasRenderingContext2D} ctx
+     * @param {number} [elapsed]
      */
     draw(ctx) {
         if (this.collected) return;
 
-        const hoverZ = this.z + (this.z <= 0.5 ? Math.abs(Math.sin(this.age * 5)) * 3.5 : 0);
-        const drawY = this.y - hoverZ;
+        // Pequeño salto escalonado cuando reposa en el suelo (2 posiciones, estilo 16 bits)
+        const resting = this.z <= 0.5;
+        const hoverZ = this.z + (resting && Math.floor(this.age * 3) % 2 === 0 ? PX : 0);
+        const x = snap(this.x);
+        const y = snap(this.y);
 
-        ctx.save();
+        // Sombra plana de píxeles
+        const sw = hoverZ > 24 ? 2 : 3;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.fillRect(x - sw * PX, y, sw * 2 * PX, PX);
+        ctx.fillRect(x - (sw - 1) * PX, y + PX, (sw - 1) * 2 * PX, PX);
 
-        // Sombra proyectada en el plano Z=0
-        const shadowScale = Math.max(0.45, 1 - hoverZ / 95);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-        ctx.beginPath();
-        ctx.ellipse(this.x, this.y + 3, 7 * shadowScale, 3.8 * shadowScale, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (this.type === LOOT_TYPE.GOLD_COIN) {
-            const spinWidth = Math.max(3, Math.abs(Math.cos(this.age * 7)) * 6.5);
-            ctx.fillStyle = '#facc15';
-            ctx.strokeStyle = '#92400e';
-            ctx.lineWidth = 1.4;
-            ctx.beginPath();
-            ctx.ellipse(this.x, drawY, spinWidth, 6.5, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#fef08a';
-            ctx.beginPath();
-            ctx.arc(this.x - 1, drawY - 2, 1.5, 0, Math.PI * 2);
-            ctx.fill();
-        } else if (this.type === LOOT_TYPE.GOLD_POUCH) {
-            // Bolsa de cuero con monedas de oro
-            ctx.fillStyle = '#b45309';
-            ctx.strokeStyle = '#451a03';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.arc(this.x, drawY, 7.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-
-            // Cuello de la bolsa y cordón dorado
-            ctx.fillStyle = '#facc15';
-            ctx.fillRect(this.x - 4, drawY - 8, 8, 3);
-        } else {
-            // Frasco alquímico de poción
-            let liquidColor = '#22c55e';
-            let glowColor = '#86efac';
-            if (this.type === LOOT_TYPE.STRENGTH_POTION) {
-                liquidColor = '#f97316';
-                glowColor = '#fdba74';
-            } else if (this.type === LOOT_TYPE.SPEED_POTION) {
-                liquidColor = '#0ea5e9';
-                glowColor = '#7dd3fc';
-            }
-
-            // Cuerpo de cristal
-            ctx.fillStyle = liquidColor;
-            ctx.strokeStyle = '#f8fafc';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.arc(this.x, drawY, 7, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-
-            // Cuello y tapón de corcho
-            ctx.fillStyle = '#e2e8f0';
-            ctx.fillRect(this.x - 2.5, drawY - 10, 5, 4);
-            ctx.fillStyle = '#92400e';
-            ctx.fillRect(this.x - 2, drawY - 12, 4, 2.5);
-
-            // Brillo interior
-            ctx.fillStyle = glowColor;
-            ctx.beginPath();
-            ctx.arc(this.x - 2.2, drawY - 2, 2.2, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        ctx.restore();
+        let frame = LOOT_FRAME[this.type] || 'coin0';
+        if (this.type === LOOT_TYPE.GOLD_COIN) frame = `coin${Math.floor(this.age * 8) % 4}`;
+        envSprite(ctx, 'items', frame, x, y + PX - hoverZ);
     }
 }

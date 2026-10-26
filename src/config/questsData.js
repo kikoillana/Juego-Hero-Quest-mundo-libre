@@ -128,7 +128,7 @@ export const SIDE_QUESTS_DATA = Object.freeze([
         objectiveType: 'kills',
         targetCount: 6,
         rewardType: 'gold',
-        rewardSummary: '💰 250 Monedas de Oro + 🧪 2 Pociones Curativas',
+        rewardSummary: '250 Monedas de Oro + 2 Pociones Curativas',
         reward: {
             gold: 250,
             healPotions: 2
@@ -147,7 +147,7 @@ export const SIDE_QUESTS_DATA = Object.freeze([
         objectiveType: 'meteors',
         targetCount: 3,
         rewardType: 'weapon',
-        rewardSummary: '⚔️ NUEVA ARMA: «Hoja Astral de Loretome» (+18 ATQ, +10% Crítico, +12 Alcance)',
+        rewardSummary: 'NUEVA ARMA: «Hoja Astral de Loretome» (+18 ATQ, +10% Crítico, +12 Alcance)',
         reward: {
             weaponId: 'astral_blade',
             gold: 100
@@ -166,7 +166,7 @@ export const SIDE_QUESTS_DATA = Object.freeze([
         objectiveType: 'altars',
         targetCount: 3,
         rewardType: 'skill_active',
-        rewardSummary: '⚡ NUEVA HABILIDAD [Tecla F]: «Tempestad de Loretome» (Rayo en Área + Curación)',
+        rewardSummary: 'NUEVA HABILIDAD [Tecla F]: «Tempestad de Loretome» (Rayo en Área + Curación)',
         reward: {
             unlockSecondSkill: true,
             gold: 120
@@ -185,7 +185,7 @@ export const SIDE_QUESTS_DATA = Object.freeze([
         objectiveType: 'moonflowers',
         targetCount: 5,
         rewardType: 'skill_passive',
-        rewardSummary: '🌿 HABILIDAD PASIVA: «Sangre Silvana» (Regenera Vida/Stamina +25 Vida Máx) + 💰 180 Oro',
+        rewardSummary: 'HABILIDAD PASIVA: «Sangre Silvana» (Regenera Vida/Stamina +25 Vida Máx) + 180 Oro',
         reward: {
             unlockPassiveRegen: true,
             bonusMaxHp: 25,
@@ -205,7 +205,7 @@ export const SIDE_QUESTS_DATA = Object.freeze([
         objectiveType: 'subboss',
         targetCount: 1,
         rewardType: 'weapon_and_gold',
-        rewardSummary: '🗡️ NUEVA ARMA: «Alabarda Matadragones» (+14 ATQ y +1 Nv. Forja) + 💰 350 Oro',
+        rewardSummary: 'NUEVA ARMA: «Alabarda Matadragones» (+14 ATQ y +1 Nv. Forja) + 350 Oro',
         reward: {
             weaponId: 'dragonslayer_halberd',
             bonusWeaponLevel: 1,
@@ -225,7 +225,7 @@ export const SIDE_QUESTS_DATA = Object.freeze([
         objectiveType: 'chests',
         targetCount: 4,
         rewardType: 'gold_and_armor',
-        rewardSummary: '💰 450 Monedas de Oro + 🛡️ Habilidad «Égida Imperial» (+4 DEF y +20 Stamina Máx)',
+        rewardSummary: '450 Monedas de Oro + Habilidad «Égida Imperial» (+4 DEF y +20 Stamina Máx)',
         reward: {
             gold: 450,
             bonusDefense: 4,
